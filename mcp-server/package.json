@@ -1,0 +1,32 @@
+{
+  "name": "figma-claude-bridge-mcp",
+  "version": "1.0.0",
+  "description": "MCP server that bridges Claude AI to Figma plugin",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "mcp",
+    "figma",
+    "claude",
+    "ai"
+  ],
+  "author": "Hassan Karimi <https://github.com/HassanHKarimi>",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ws": "^8.16.0",
+    "zod": "^3.22.4",
+    "zod-to-json-schema": "^3.25.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3"
+  }
+}

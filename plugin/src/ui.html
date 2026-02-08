@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Claude AI Bridge</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 12px;
+      padding: 16px;
+      color: #333;
+      background: #fff;
+    }
+
+    .header {
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #666;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #999;
+    }
+
+    .status-indicator.connected {
+      background: #0fa958;
+    }
+
+    .status-indicator.error {
+      background: #f24822;
+    }
+
+    .section {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+
+    .section-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #666;
+    }
+
+    .input-group {
+      margin-bottom: 8px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 11px;
+      color: #666;
+    }
+
+    input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 11px;
+      background: #fff;
+      color: #333;
+    }
+
+    button {
+      width: 100%;
+      padding: 8px;
+      background: #18a0fb;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button.secondary {
+      background: #fff;
+      color: #333;
+      border: 1px solid #ccc;
+    }
+
+    .log {
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 10px;
+      padding: 8px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      color: #333;
+    }
+
+    .log-entry {
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+
+    .info {
+      font-size: 11px;
+      color: #666;
+      line-height: 1.4;
+      margin-top: 8px;
+    }
+
+    .error-banner {
+      background: #fff0f0;
+      border: 1px solid #f24822;
+      color: #c00;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-bottom: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="error-banner" class="error-banner"></div>
+
+  <div class="header">
+    <h1>Claude AI Bridge</h1>
+    <div class="status">
+      <div class="status-indicator" id="status-indicator"></div>
+      <span id="status-text">Waiting for connection...</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Connection</div>
+    <div class="input-group">
+      <label for="server-url">MCP Server URL</label>
+      <input
+        type="text"
+        id="server-url"
+        value="ws://localhost:3055"
+        placeholder="ws://localhost:3055"
+      >
+    </div>
+    <button id="connect-btn" onclick="onConnectClick()">Connect to MCP Server</button>
+    <p class="info">
+      Start the MCP server first, then click Connect.
+    </p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Activity Log</div>
+    <div class="log" id="log"></div>
+    <button class="secondary" onclick="clearLog()" style="margin-top: 8px;">Clear Log</button>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Quick Actions</div>
+    <button class="secondary" onclick="onTestClick()">Test Connection</button>
+  </div>
+
+  <script>
+    // Global error handler - catch anything that goes wrong
+    window.onerror = function(msg, url, line, col, error) {
+      showError('JS Error: ' + msg + ' (line ' + line + ')');
+      return false;
+    };
+
+    window.onunhandledrejection = function(event) {
+      showError('Unhandled promise rejection: ' + event.reason);
+    };
+
+    function showError(msg) {
+      var banner = document.getElementById('error-banner');
+      if (banner) {
+        banner.style.display = 'block';
+        banner.textContent = msg;
+      }
+      log(msg, 'error');
+    }
+
+    // State
+    var ws = null;
+    var isConnected = false;
+
+    // Safe log function - works even if DOM isn't ready
+    function log(message, type) {
+      type = type || 'info';
+      var logEl = document.getElementById('log');
+      if (!logEl) return;
+
+      var timestamp = new Date().toLocaleTimeString();
+      var entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = '[' + timestamp + '] ' + message;
+
+      if (type === 'error') entry.style.color = '#f24822';
+      else if (type === 'success') entry.style.color = '#0fa958';
+      else if (type === 'warning') entry.style.color = '#cc8800';
+      else entry.style.color = '#333';
+
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+      var logEl = document.getElementById('log');
+      if (logEl) logEl.innerHTML = '';
+      log('Log cleared');
+    }
+
+    function updateStatus(connected, error) {
+      var indicator = document.getElementById('status-indicator');
+      var text = document.getElementById('status-text');
+      if (!indicator || !text) return;
+
+      indicator.className = 'status-indicator';
+      if (connected) {
+        indicator.classList.add('connected');
+        text.textContent = 'Connected';
+      } else if (error) {
+        indicator.classList.add('error');
+        text.textContent = 'Error';
+      } else {
+        text.textContent = 'Disconnected';
+      }
+    }
+
+    // Connection logic
+    function onConnectClick() {
+      log('Connect button clicked');
+      try {
+        if (isConnected) {
+          disconnect();
+        } else {
+          connect();
+        }
+      } catch (e) {
+        showError('onClick error: ' + e.message);
+      }
+    }
+
+    function connect() {
+      var urlInput = document.getElementById('server-url');
+      var url = urlInput ? urlInput.value.trim() : '';
+
+      if (!url) {
+        log('Error: Server URL is required', 'error');
+        return;
+      }
+
+      log('Attempting connection to ' + url + '...');
+
+      // Check if WebSocket is available
+      if (typeof WebSocket === 'undefined') {
+        showError('WebSocket is not available in this environment');
+        return;
+      }
+
+      log('WebSocket API available, creating connection...');
+
+      try {
+        ws = new WebSocket(url);
+        log('WebSocket object created, waiting for events...');
+      } catch (e) {
+        showError('WebSocket constructor failed: ' + e.message);
+        updateStatus(false, true);
+        return;
+      }
+
+      ws.onopen = function() {
+        log('WebSocket onopen fired', 'success');
+        isConnected = true;
+        updateStatus(true);
+        log('Connected to MCP server!', 'success');
+        var btn = document.getElementById('connect-btn');
+        if (btn) btn.textContent = 'Disconnect';
+      };
+
+      ws.onclose = function(event) {
+        log('WebSocket onclose - code: ' + event.code + ', reason: ' + (event.reason || 'none'), 'warning');
+        isConnected = false;
+        updateStatus(false);
+        ws = null;
+        var btn = document.getElementById('connect-btn');
+        if (btn) btn.textContent = 'Connect to MCP Server';
+      };
+
+      ws.onerror = function(event) {
+        log('WebSocket onerror fired', 'error');
+        log('Could not connect - is the MCP server running on this URL?', 'error');
+        updateStatus(false, true);
+      };
+
+      ws.onmessage = function(event) {
+        try {
+          var message = JSON.parse(event.data);
+          log('Received: ' + (message.type || 'unknown'));
+          // Forward to plugin main thread
+          parent.postMessage({ pluginMessage: message }, '*');
+        } catch (e) {
+          log('Failed to parse message: ' + e.message, 'error');
+        }
+      };
+    }
+
+    function disconnect() {
+      log('Disconnecting...');
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+      isConnected = false;
+      updateStatus(false);
+    }
+
+    function onTestClick() {
+      if (!isConnected) {
+        log('Not connected - connect first', 'warning');
+        return;
+      }
+      log('Sending ping to plugin...');
+      parent.postMessage({ pluginMessage: { type: 'ping' } }, '*');
+    }
+
+    // Listen for responses from plugin main thread and forward to WebSocket
+    window.addEventListener('message', function(event) {
+      try {
+        var response = event.data && event.data.pluginMessage;
+        if (response && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(response));
+          log('Sent to server: ' + (response.type || 'unknown'));
+        }
+      } catch (e) {
+        log('Error forwarding message: ' + e.message, 'error');
+      }
+    });
+
+    // Init
+    log('Plugin UI loaded');
+    log('WebSocket available: ' + (typeof WebSocket !== 'undefined'));
+  </script>
+</body>
+</html>

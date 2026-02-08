@@ -1,0 +1,22 @@
+{
+  "name": "figma-claude-bridge-plugin",
+  "version": "1.0.0",
+  "description": "Figma plugin that enables Claude AI to design in Figma",
+  "main": "dist/code.js",
+  "scripts": {
+    "build": "tsc && cp src/ui.html dist/",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": ["figma", "plugin", "ai", "claude", "mcp"],
+  "author": "Hassan Karimi <https://github.com/HassanHKarimi>",
+  "license": "MIT",
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.90.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

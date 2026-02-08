@@ -1,0 +1,14 @@
+{
+  "name": "Claude AI Bridge",
+  "id": "claude-ai-bridge",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma", "figjam"],
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Needed for WebSocket communication with MCP server"
+  },
+  "capabilities": [],
+  "permissions": ["currentuser"]
+}
