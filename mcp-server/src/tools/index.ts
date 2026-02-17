@@ -784,6 +784,52 @@ export const createTextPath: FigmaTool = {
   },
 };
 
+// ===== TEXT CONTENT OPERATIONS =====
+
+export const setTextContent: FigmaTool = {
+  name: 'figma_set_text_content',
+  description: 'Set the text content (characters) of an existing text node. Optionally update font, size, and fills at the same time.',
+  inputSchema: z.object({
+    id: z.string().describe('Text node ID'),
+    characters: z.string().describe('New text content'),
+    fontName: z.object({ family: z.string(), style: z.string() }).optional().describe('Font to apply before setting text'),
+    fontSize: z.number().optional().describe('Font size in pixels'),
+    fills: z.array(z.any()).optional().describe('Fill colors (hex strings or fill objects)'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('set-text-content', args);
+  },
+};
+
+// ===== NODE TREE OPERATIONS =====
+
+export const getNodeTree: FigmaTool = {
+  name: 'figma_get_node_tree',
+  description: 'Get a node and all its descendants recursively. Returns the full subtree structure with all properties. Use depth to limit recursion.',
+  inputSchema: z.object({
+    id: z.string().describe('Root node ID'),
+    depth: z.number().optional().describe('Max depth to recurse (default: 10). Use 1 for immediate children only.'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('get-node-tree', { id: args.id, depth: args.depth ?? 10 });
+  },
+};
+
+// ===== FIND NODES OPERATIONS =====
+
+export const findNodesByName: FigmaTool = {
+  name: 'figma_find_nodes_by_name',
+  description: 'Find nodes by name within a subtree. Returns matching nodes with their IDs and types. Useful for locating specific children after cloning a template.',
+  inputSchema: z.object({
+    parentId: z.string().describe('ID of the parent node to search within'),
+    name: z.string().describe('Name to search for (exact match)'),
+    type: z.enum(['TEXT', 'FRAME', 'RECTANGLE', 'ELLIPSE', 'COMPONENT', 'INSTANCE', 'GROUP', 'SECTION']).optional().describe('Filter by node type'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('find-nodes-by-name', args);
+  },
+};
+
 // Export all tools
 export const figmaTools: FigmaTool[] = [
   getDocumentInfo,
@@ -836,4 +882,7 @@ export const figmaTools: FigmaTool[] = [
   bindVariableToNode,
   bindVariableToStyle,
   createTextPath,
+  setTextContent,
+  getNodeTree,
+  findNodesByName,
 ];
