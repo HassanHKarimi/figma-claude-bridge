@@ -268,6 +268,21 @@ figma.ui.onmessage = async (msg) => {
         respond('variable-bound-to-style', boundStyle);
         break;
 
+      case 'set-text-content':
+        await setTextContent(msg.data);
+        respond('text-content-set', { success: true });
+        break;
+
+      case 'get-node-tree':
+        const nodeTree = await getNodeTree(msg.data);
+        respond('node-tree', nodeTree);
+        break;
+
+      case 'find-nodes-by-name':
+        const foundNodes = await findNodesByName(msg.data);
+        respond('nodes-found', foundNodes);
+        break;
+
       default:
         console.warn('Unknown message type:', msg.type);
         respond('error', { message: 'Unknown command' });
@@ -911,6 +926,19 @@ function serializeNode(node: BaseNode): any {
     base.boundVariables = (node as any).boundVariables;
   }
 
+  if (node.type === 'TEXT') {
+    const textNode = node as TextNode;
+    base.characters = textNode.characters;
+    if (textNode.fontSize !== figma.mixed) base.fontSize = textNode.fontSize;
+    if (textNode.fontName !== figma.mixed) base.fontName = textNode.fontName;
+    if (textNode.textAlignHorizontal) base.textAlignHorizontal = textNode.textAlignHorizontal;
+    if (textNode.lineHeight !== figma.mixed) base.lineHeight = textNode.lineHeight;
+    if (textNode.letterSpacing !== figma.mixed) base.letterSpacing = textNode.letterSpacing;
+    if (textNode.textCase !== figma.mixed) base.textCase = textNode.textCase;
+    if (textNode.textDecoration !== figma.mixed) base.textDecoration = textNode.textDecoration;
+    base.textAutoResize = textNode.textAutoResize;
+  }
+
   if ('children' in node) {
     base.children = node.children.map(child => ({
       id: child.id,
@@ -1353,6 +1381,61 @@ async function createTextPathHandler(data: any) {
   if (data.fills) textPath.fills = parseFills(data.fills);
 
   return textPath;
+}
+
+// ===== TEXT CONTENT, NODE TREE, FIND BY NAME =====
+
+async function setTextContent(data: any) {
+  const node = figma.getNodeById(data.id);
+  if (!node || node.type !== 'TEXT') throw new Error(`Node ${data.id} is not a text node`);
+  const textNode = node as TextNode;
+
+  // Load current font first (required before setting characters)
+  const currentFont = textNode.fontName;
+  if (currentFont !== figma.mixed) {
+    await figma.loadFontAsync(currentFont);
+  } else {
+    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+  }
+
+  // If changing font, load and set it before characters
+  if (data.fontName) {
+    await figma.loadFontAsync(data.fontName);
+    textNode.fontName = data.fontName;
+  }
+
+  textNode.characters = data.characters;
+
+  if (data.fontSize !== undefined) textNode.fontSize = data.fontSize;
+  if (data.fills) textNode.fills = parseFills(data.fills);
+}
+
+function serializeNodeDeep(node: BaseNode, depth: number): any {
+  const serialized = serializeNode(node);
+  if (depth > 0 && 'children' in node) {
+    serialized.children = node.children.map((child: BaseNode) => serializeNodeDeep(child, depth - 1));
+  }
+  return serialized;
+}
+
+async function getNodeTree(data: any) {
+  const node = figma.getNodeById(data.id);
+  if (!node) throw new Error(`Node ${data.id} not found`);
+  return serializeNodeDeep(node, data.depth ?? 10);
+}
+
+async function findNodesByName(data: any) {
+  const parent = figma.getNodeById(data.parentId);
+  if (!parent) throw new Error(`Node ${data.parentId} not found`);
+  if (!('findAll' in parent)) throw new Error('Node does not support findAll');
+
+  const matches = (parent as ChildrenMixin).findAll(child => {
+    const nameMatch = child.name === data.name;
+    const typeMatch = data.type ? child.type === data.type : true;
+    return nameMatch && typeMatch;
+  });
+
+  return matches.map(node => serializeNode(node));
 }
 
 // ===== STYLE OPERATION HANDLERS =====
