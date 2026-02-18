@@ -652,9 +652,10 @@ export const createVariable: FigmaTool = {
 
 export const getLocalVariables: FigmaTool = {
   name: 'figma_get_local_variables',
-  description: 'Get all local variables in the document, optionally filtered by type.',
+  description: 'Get all local variables in the document, optionally filtered by type and/or name prefix. Use namePrefix to avoid loading the entire collection when checking for specific variables.',
   inputSchema: z.object({
     type: z.enum(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']).optional().describe('Filter by variable type'),
+    namePrefix: z.string().optional().describe('Filter by name prefix (e.g., "Gray/" returns only variables whose name starts with "Gray/")'),
   }),
   execute: async (args, sendToFigma) => {
     return await sendToFigma('get-local-variables', args);
@@ -830,6 +831,84 @@ export const findNodesByName: FigmaTool = {
   },
 };
 
+// ===== BATCH OPERATIONS =====
+
+export const createVariablesBatch: FigmaTool = {
+  name: 'figma_create_variables_batch',
+  description: 'Create multiple variables in a single call. Much more efficient than calling figma_create_variable N times. Returns created variable IDs and any per-item errors.',
+  inputSchema: z.object({
+    collectionId: z.string().describe('ID of the variable collection to add variables to'),
+    variables: z.array(z.object({
+      name: z.string().describe('Variable name (e.g., "primary-color", "Gray/500")'),
+      resolvedType: z.enum(['COLOR', 'FLOAT', 'STRING', 'BOOLEAN']).describe('Variable type'),
+      values: z.record(z.any()).optional().describe('Values keyed by mode ID. For COLOR use hex strings. For FLOAT use numbers. For aliases use {type: "VARIABLE_ALIAS", id: "VariableID:xxx:xxx"}'),
+      description: z.string().optional().describe('Variable description'),
+      scopes: z.array(z.string()).optional().describe('Scopes where this variable appears'),
+      hiddenFromPublishing: z.boolean().optional().describe('Hide from library publishing'),
+    })).describe('Array of variable specs to create'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('create-variables-batch', args);
+  },
+};
+
+export const deleteVariablesBatch: FigmaTool = {
+  name: 'figma_delete_variables_batch',
+  description: 'Delete multiple variables in a single call. Much safer and faster than sequential deletes. Returns list of deleted IDs and any per-item errors.',
+  inputSchema: z.object({
+    variableIds: z.array(z.string()).describe('Array of variable IDs to delete (e.g., ["VariableID:632:3", "VariableID:632:4"])'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('delete-variables-batch', args);
+  },
+};
+
+export const cloneNodesBatch: FigmaTool = {
+  name: 'figma_clone_nodes_batch',
+  description: 'Clone multiple nodes in a single call. Each clone can be positioned and optionally placed in a different parent. Returns an array of {sourceNodeId, id, name} for each clone.',
+  inputSchema: z.object({
+    nodes: z.array(z.object({
+      nodeId: z.string().describe('ID of the node to clone'),
+      name: z.string().optional().describe('Name for the cloned node'),
+      x: z.number().optional().describe('X position for the clone'),
+      y: z.number().optional().describe('Y position for the clone'),
+      parentId: z.string().optional().describe('Parent node ID to append clone to (defaults to same parent as source)'),
+    })).describe('Array of clone specs'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('clone-nodes-batch', args);
+  },
+};
+
+export const updateNodesBatch: FigmaTool = {
+  name: 'figma_update_nodes_batch',
+  description: 'Update multiple nodes in a single call. Supports position, size, fills, opacity, visibility, corner radius, text content, font size, and variable bindings per node. Returns updated node IDs and any per-item errors.',
+  inputSchema: z.object({
+    updates: z.array(z.object({
+      nodeId: z.string().describe('ID of the node to update'),
+      name: z.string().optional().describe('New node name'),
+      x: z.number().optional().describe('X position'),
+      y: z.number().optional().describe('Y position'),
+      width: z.number().optional().describe('Width in pixels'),
+      height: z.number().optional().describe('Height in pixels'),
+      fills: z.array(z.any()).optional().describe('Fill colors (hex strings or fill objects)'),
+      opacity: z.number().optional().describe('Opacity 0–1'),
+      visible: z.boolean().optional().describe('Visibility'),
+      cornerRadius: z.number().optional().describe('Corner radius in pixels'),
+      characters: z.string().optional().describe('Text content (TEXT nodes only)'),
+      fontSize: z.number().optional().describe('Font size (TEXT nodes only)'),
+      variableBindings: z.array(z.object({
+        field: z.string().describe('Property to bind: "fills", "strokes", or scalar fields like "cornerRadius", "opacity"'),
+        variableId: z.string().describe('Variable ID to bind (e.g., "VariableID:632:3")'),
+        index: z.number().optional().describe('Paint array index for fills/strokes (default 0)'),
+      })).optional().describe('Variable bindings to apply to this node'),
+    })).describe('Array of per-node update specs'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('update-nodes-batch', args);
+  },
+};
+
 // Export all tools
 export const figmaTools: FigmaTool[] = [
   getDocumentInfo,
@@ -885,4 +964,9 @@ export const figmaTools: FigmaTool[] = [
   setTextContent,
   getNodeTree,
   findNodesByName,
+  // Batch tools
+  createVariablesBatch,
+  deleteVariablesBatch,
+  cloneNodesBatch,
+  updateNodesBatch,
 ];

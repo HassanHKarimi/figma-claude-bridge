@@ -268,6 +268,26 @@ figma.ui.onmessage = async (msg) => {
         respond('variable-bound-to-style', boundStyle);
         break;
 
+      case 'create-variables-batch':
+        const batchVars = await createVariablesBatchHandler(msg.data);
+        respond('variables-batch-created', batchVars);
+        break;
+
+      case 'delete-variables-batch':
+        const batchDelResult = await deleteVariablesBatchHandler(msg.data);
+        respond('variables-batch-deleted', batchDelResult);
+        break;
+
+      case 'clone-nodes-batch':
+        const batchClones = await cloneNodesBatchHandler(msg.data);
+        respond('nodes-batch-cloned', batchClones);
+        break;
+
+      case 'update-nodes-batch':
+        const batchUpdates = await updateNodesBatchHandler(msg.data);
+        respond('nodes-batch-updated', batchUpdates);
+        break;
+
       case 'set-text-content':
         await setTextContent(msg.data);
         respond('text-content-set', { success: true });
@@ -1225,7 +1245,10 @@ function createVariableHandler(data: any) {
 }
 
 async function getLocalVariablesHandler(data: any) {
-  const variables = await figma.variables.getLocalVariablesAsync(data.type);
+  let variables = await figma.variables.getLocalVariablesAsync(data.type);
+  if (data.namePrefix) {
+    variables = variables.filter(v => v.name.startsWith(data.namePrefix));
+  }
   return variables.map(v => ({
     id: v.id,
     name: v.name,
@@ -1436,6 +1459,180 @@ async function findNodesByName(data: any) {
   });
 
   return matches.map(node => serializeNode(node));
+}
+
+// ===== BATCH OPERATION HANDLERS =====
+
+async function createVariablesBatchHandler(data: any) {
+  const collection = figma.variables.getVariableCollectionById(data.collectionId);
+  if (!collection) throw new Error(`Collection ${data.collectionId} not found`);
+
+  const created: any[] = [];
+  const errors: any[] = [];
+
+  for (const spec of data.variables) {
+    try {
+      const variable = figma.variables.createVariable(
+        spec.name,
+        collection,
+        spec.resolvedType
+      );
+
+      if (spec.description) variable.description = spec.description;
+      if (spec.hiddenFromPublishing !== undefined) variable.hiddenFromPublishing = spec.hiddenFromPublishing;
+      if (spec.scopes) variable.scopes = spec.scopes;
+
+      if (spec.values) {
+        for (const [modeId, value] of Object.entries(spec.values)) {
+          let resolvedValue = value;
+          if (typeof value === 'object' && value !== null && (value as any).type === 'VARIABLE_ALIAS') {
+            resolvedValue = figma.variables.createVariableAlias(
+              await figma.variables.getVariableByIdAsync((value as any).id) as Variable
+            );
+          } else if (spec.resolvedType === 'COLOR' && typeof value === 'string') {
+            resolvedValue = hexToRgba(value as string);
+          }
+          variable.setValueForMode(modeId, resolvedValue as VariableValue);
+        }
+      }
+
+      created.push({ id: variable.id, name: variable.name, resolvedType: variable.resolvedType });
+    } catch (err) {
+      errors.push({ name: spec.name, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { created, errors, total: data.variables.length };
+}
+
+async function deleteVariablesBatchHandler(data: any) {
+  const deleted: string[] = [];
+  const errors: any[] = [];
+
+  for (const variableId of data.variableIds) {
+    try {
+      const variable = await figma.variables.getVariableByIdAsync(variableId);
+      if (!variable) throw new Error(`Variable ${variableId} not found`);
+      variable.remove();
+      deleted.push(variableId);
+    } catch (err) {
+      errors.push({ variableId, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { deleted, errors, total: data.variableIds.length };
+}
+
+async function cloneNodesBatchHandler(data: any) {
+  const cloned: any[] = [];
+  const errors: any[] = [];
+
+  for (const spec of data.nodes) {
+    try {
+      const node = figma.getNodeById(spec.nodeId);
+      if (!node) throw new Error(`Node ${spec.nodeId} not found`);
+      if (!('clone' in node)) throw new Error(`Node ${spec.nodeId} does not support cloning`);
+
+      const clone = (node as SceneNode).clone();
+      if (spec.name) clone.name = spec.name;
+      if (spec.x !== undefined) clone.x = spec.x;
+      if (spec.y !== undefined) clone.y = spec.y;
+
+      if (spec.parentId) {
+        const parent = figma.getNodeById(spec.parentId);
+        if (!parent || !isContainerNode(parent)) throw new Error(`Parent ${spec.parentId} not found or not a container`);
+        parent.appendChild(clone);
+      }
+
+      cloned.push({ sourceNodeId: spec.nodeId, id: clone.id, name: clone.name });
+    } catch (err) {
+      errors.push({ nodeId: spec.nodeId, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { cloned, errors, total: data.nodes.length };
+}
+
+async function updateNodesBatchHandler(data: any) {
+  const updated: string[] = [];
+  const errors: any[] = [];
+
+  for (const spec of data.updates) {
+    try {
+      const node = figma.getNodeById(spec.nodeId);
+      if (!node) throw new Error(`Node ${spec.nodeId} not found`);
+
+      if (spec.name) node.name = spec.name;
+      if (spec.x !== undefined && 'x' in node) (node as any).x = spec.x;
+      if (spec.y !== undefined && 'y' in node) (node as any).y = spec.y;
+
+      if ((spec.width || spec.height) && 'resize' in node) {
+        const w = spec.width ?? (node as any).width;
+        const h = spec.height ?? (node as any).height;
+        (node as any).resize(w, h);
+      }
+
+      if (spec.fills && 'fills' in node) {
+        (node as any).fills = parseFills(spec.fills);
+      }
+
+      if (spec.opacity !== undefined && 'opacity' in node) {
+        (node as any).opacity = spec.opacity;
+      }
+
+      if (spec.visible !== undefined && 'visible' in node) {
+        (node as SceneNode).visible = spec.visible;
+      }
+
+      if (spec.cornerRadius !== undefined && 'cornerRadius' in node) {
+        (node as any).cornerRadius = spec.cornerRadius;
+      }
+
+      // Text node updates
+      if (node.type === 'TEXT' && (spec.characters !== undefined || spec.fontSize !== undefined || spec.fills !== undefined)) {
+        const textNode = node as TextNode;
+        const currentFont = textNode.fontName;
+        if (currentFont !== figma.mixed) {
+          await figma.loadFontAsync(currentFont);
+        } else {
+          await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+        }
+        if (spec.characters !== undefined) textNode.characters = spec.characters;
+        if (spec.fontSize !== undefined) textNode.fontSize = spec.fontSize;
+        if (spec.fills) textNode.fills = parseFills(spec.fills);
+      }
+
+      // Variable bindings
+      if (spec.variableBindings) {
+        for (const binding of spec.variableBindings) {
+          const variable = await figma.variables.getVariableByIdAsync(binding.variableId);
+          if (!variable) throw new Error(`Variable ${binding.variableId} not found`);
+
+          if (binding.field === 'fills' || binding.field === 'strokes') {
+            const index = binding.index ?? 0;
+            if (!(binding.field in node)) throw new Error(`Node does not have ${binding.field}`);
+            const paints = (node as any)[binding.field] as Paint[];
+            if (!paints || paints.length <= index) throw new Error(`No ${binding.field} at index ${index}`);
+            const paint = paints[index] as SolidPaint;
+            if (paint.type !== 'SOLID') throw new Error(`Paint at index ${index} is not SOLID`);
+            const newPaint = figma.variables.setBoundVariableForPaint(paint, 'color', variable);
+            const newPaints = [...paints];
+            newPaints[index] = newPaint;
+            (node as any)[binding.field] = newPaints;
+          } else {
+            if (!('setBoundVariable' in node)) throw new Error(`Node does not support bound variables`);
+            (node as SceneNode).setBoundVariable(binding.field as VariableBindableNodeField, variable);
+          }
+        }
+      }
+
+      updated.push(spec.nodeId);
+    } catch (err) {
+      errors.push({ nodeId: spec.nodeId, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { updated, errors, total: data.updates.length };
 }
 
 // ===== STYLE OPERATION HANDLERS =====
