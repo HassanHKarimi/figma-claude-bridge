@@ -30,7 +30,7 @@ function toJsonSchema(zodSchema: any): any {
 }
 
 // Server configuration
-const WS_PORT = 3055;
+const WS_PORT = process.env.FIGMA_WS_PORT ? parseInt(process.env.FIGMA_WS_PORT, 10) : 3055;
 const MCP_SERVER_NAME = 'figma-claude-bridge';
 const MCP_SERVER_VERSION = '1.0.0';
 

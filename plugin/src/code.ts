@@ -8,7 +8,7 @@ console.log('Claude AI Bridge plugin loaded');
 let isConnected = false;
 
 // Initialize plugin
-figma.showUI(__html__, { width: 300, height: 400, themeColors: true });
+figma.showUI(__html__, { width: 300, height: 460, themeColors: true });
 
 // Handle messages from UI (which communicates with MCP server)
 figma.ui.onmessage = async (msg) => {
