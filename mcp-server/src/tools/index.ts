@@ -831,6 +831,36 @@ export const findNodesByName: FigmaTool = {
   },
 };
 
+// ===== SPATIAL / PLACEMENT QUERY OPERATIONS =====
+
+export const getPageChildren: FigmaTool = {
+  name: 'figma_get_page_children',
+  description: `Get ALL direct children of a page or frame as a flat list with their positions and sizes.
+Use this before placing new content to understand the current layout. More reliable than
+figma_get_node_tree depth=1 which silently truncates when there are many children.
+Each item returns: {id, name, type, x, y, width, height}.`,
+  inputSchema: z.object({
+    id: z.string().optional().describe('Page or frame node ID. Omit to target the current page.'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('get-page-children', args);
+  },
+};
+
+export const getContentBounds: FigmaTool = {
+  name: 'figma_get_content_bounds',
+  description: `Get the bounding box of all content within a page or frame.
+Returns {minX, minY, maxX, maxY, empty} — the tightest rectangle enclosing all direct children.
+Use maxY to find the bottom edge of existing content before placing a new frame below it,
+eliminating the need for manual coordinate calculations across multiple nodes.`,
+  inputSchema: z.object({
+    id: z.string().optional().describe('Page or frame node ID. Omit to target the current page.'),
+  }),
+  execute: async (args, sendToFigma) => {
+    return await sendToFigma('get-content-bounds', args);
+  },
+};
+
 // ===== BATCH OPERATIONS =====
 
 export const createVariablesBatch: FigmaTool = {
@@ -969,4 +999,7 @@ export const figmaTools: FigmaTool[] = [
   deleteVariablesBatch,
   cloneNodesBatch,
   updateNodesBatch,
+  // Spatial / placement tools
+  getPageChildren,
+  getContentBounds,
 ];

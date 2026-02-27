@@ -33,32 +33,35 @@ figma.ui.onmessage = async (msg) => {
 
       case 'create-frame':
         const frame = await createFrame(msg.data);
-        respond('frame-created', { id: frame.id });
+        respond('frame-created', { id: frame.id, ...nodePlacement(frame), currentPage: getCurrentPageInfo() });
         break;
 
       case 'create-rectangle':
         const rect = await createRectangle(msg.data);
-        respond('rectangle-created', { id: rect.id });
+        respond('rectangle-created', { id: rect.id, ...nodePlacement(rect), currentPage: getCurrentPageInfo() });
         break;
 
       case 'create-text':
         const text = await createText(msg.data);
-        respond('text-created', { id: text.id });
+        respond('text-created', { id: text.id, ...nodePlacement(text), currentPage: getCurrentPageInfo() });
         break;
 
       case 'create-ellipse':
         const ellipse = await createEllipse(msg.data);
-        respond('ellipse-created', { id: ellipse.id });
+        respond('ellipse-created', { id: ellipse.id, ...nodePlacement(ellipse), currentPage: getCurrentPageInfo() });
         break;
 
-      case 'modify-node':
+      case 'modify-node': {
         await modifyNode(msg.data);
-        respond('node-modified', { success: true });
+        const modifiedNode = figma.getNodeById(msg.data.id);
+        const modifiedBounds = modifiedNode ? nodePlacement(modifiedNode) : {};
+        respond('node-modified', { success: true, ...modifiedBounds, currentPage: getCurrentPageInfo() });
         break;
+      }
 
       case 'delete-node':
         await deleteNode(msg.data);
-        respond('node-deleted', { success: true });
+        respond('node-deleted', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'get-node':
@@ -68,12 +71,12 @@ figma.ui.onmessage = async (msg) => {
 
       case 'create-component':
         const component = await createComponent(msg.data);
-        respond('component-created', { id: component.id });
+        respond('component-created', { id: component.id, ...nodePlacement(component), currentPage: getCurrentPageInfo() });
         break;
 
       case 'apply-auto-layout':
         await applyAutoLayout(msg.data);
-        respond('auto-layout-applied', { success: true });
+        respond('auto-layout-applied', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'export-node':
@@ -83,7 +86,7 @@ figma.ui.onmessage = async (msg) => {
 
       case 'create-style':
         const style = await createStyle(msg.data);
-        respond('style-created', { id: style.id, name: style.name });
+        respond('style-created', { id: style.id, name: style.name, currentPage: getCurrentPageInfo() });
         break;
 
       case 'get-style':
@@ -98,17 +101,17 @@ figma.ui.onmessage = async (msg) => {
 
       case 'update-style':
         await updateStyleHandler(msg.data);
-        respond('style-updated', { success: true });
+        respond('style-updated', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'delete-style':
         await deleteStyleHandler(msg.data);
-        respond('style-deleted', { success: true });
+        respond('style-deleted', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'apply-style':
         await applyStyleHandler(msg.data);
-        respond('style-applied', { success: true });
+        respond('style-applied', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'get-node-styles':
@@ -118,7 +121,7 @@ figma.ui.onmessage = async (msg) => {
 
       case 'detach-style':
         await detachStyleHandler(msg.data);
-        respond('style-detached', { success: true });
+        respond('style-detached', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'get-selection':
@@ -133,54 +136,54 @@ figma.ui.onmessage = async (msg) => {
 
       case 'create-component-set':
         const compSet = await createComponentSet(msg.data);
-        respond('component-set-created', { id: compSet.id });
+        respond('component-set-created', { id: compSet.id, ...nodePlacement(compSet), currentPage: getCurrentPageInfo() });
         break;
 
       case 'add-variant':
         const variant = await addVariant(msg.data);
-        respond('variant-added', { id: variant.id });
+        respond('variant-added', { id: variant.id, ...nodePlacement(variant), currentPage: getCurrentPageInfo() });
         break;
 
       case 'set-strokes':
         await setStrokes(msg.data);
-        respond('strokes-set', { success: true });
+        respond('strokes-set', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'set-effects':
         await setEffects(msg.data);
-        respond('effects-set', { success: true });
+        respond('effects-set', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'set-text-style':
         await setTextStyle(msg.data);
-        respond('text-style-set', { success: true });
+        respond('text-style-set', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'clone-node':
         const cloned = await cloneNode(msg.data);
-        respond('node-cloned', { id: cloned.id });
+        respond('node-cloned', { id: cloned.id, ...nodePlacement(cloned), currentPage: getCurrentPageInfo() });
         break;
 
       case 'group-nodes':
         const group = await groupNodes(msg.data);
-        respond('nodes-grouped', { id: group.id });
+        respond('nodes-grouped', { id: group.id, ...nodePlacement(group), currentPage: getCurrentPageInfo() });
         break;
 
       case 'ungroup':
         await ungroupNode(msg.data);
-        respond('ungrouped', { success: true });
+        respond('ungrouped', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'move-node':
         await moveNode(msg.data);
-        respond('node-moved', { success: true });
+        respond('node-moved', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       // ===== NEW TOOLS =====
 
       case 'create-line':
         const line = await createLine(msg.data);
-        respond('line-created', { id: line.id });
+        respond('line-created', { id: line.id, ...nodePlacement(line), currentPage: getCurrentPageInfo() });
         break;
 
       case 'create-page':
@@ -195,17 +198,17 @@ figma.ui.onmessage = async (msg) => {
 
       case 'create-component-from-node':
         const compFromNode = createComponentFromNodeHandler(msg.data);
-        respond('component-from-node-created', { id: compFromNode.id, name: compFromNode.name });
+        respond('component-from-node-created', { id: compFromNode.id, name: compFromNode.name, ...nodePlacement(compFromNode), currentPage: getCurrentPageInfo() });
         break;
 
       case 'boolean-operation':
         const boolResult = performBooleanOperation(msg.data);
-        respond('boolean-operation-done', { id: boolResult.id, name: boolResult.name });
+        respond('boolean-operation-done', { id: boolResult.id, name: boolResult.name, ...nodePlacement(boolResult), currentPage: getCurrentPageInfo() });
         break;
 
       case 'create-section':
         const section = createSectionNode(msg.data);
-        respond('section-created', { id: section.id });
+        respond('section-created', { id: section.id, ...nodePlacement(section), currentPage: getCurrentPageInfo() });
         break;
 
       case 'create-variable-collection':
@@ -255,7 +258,7 @@ figma.ui.onmessage = async (msg) => {
 
       case 'bind-variable-to-node':
         await bindVariableToNodeHandler(msg.data);
-        respond('variable-bound', { success: true });
+        respond('variable-bound', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'add-collection-mode':
@@ -290,7 +293,7 @@ figma.ui.onmessage = async (msg) => {
 
       case 'set-text-content':
         await setTextContent(msg.data);
-        respond('text-content-set', { success: true });
+        respond('text-content-set', { success: true, currentPage: getCurrentPageInfo() });
         break;
 
       case 'get-node-tree':
@@ -302,6 +305,53 @@ figma.ui.onmessage = async (msg) => {
         const foundNodes = await findNodesByName(msg.data);
         respond('nodes-found', foundNodes);
         break;
+
+      case 'get-page-children': {
+        // Returns a flat list of ALL direct children with positions.
+        // More reliable than get-node-tree depth=1 which silently truncates.
+        const pageChildrenTarget = msg.data?.id
+          ? figma.getNodeById(msg.data.id)
+          : figma.currentPage;
+        if (!pageChildrenTarget || !('children' in pageChildrenTarget)) {
+          throw new Error(`Node ${msg.data?.id ?? 'currentPage'} has no children`);
+        }
+        const pageChildren = (pageChildrenTarget as any).children.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+          x: typeof c.x === 'number' ? c.x : 0,
+          y: typeof c.y === 'number' ? c.y : 0,
+          width: typeof c.width === 'number' ? c.width : 0,
+          height: typeof c.height === 'number' ? c.height : 0,
+        }));
+        respond('page-children', { children: pageChildren, currentPage: getCurrentPageInfo() });
+        break;
+      }
+
+      case 'get-content-bounds': {
+        // Returns the tightest bounding box around all direct children.
+        // Use maxY to find the bottom edge before placing a new frame below existing content.
+        const boundsTarget = msg.data?.id
+          ? figma.getNodeById(msg.data.id)
+          : figma.currentPage;
+        if (!boundsTarget || !('children' in boundsTarget)) {
+          throw new Error(`Node ${msg.data?.id ?? 'currentPage'} has no children`);
+        }
+        const boundsChildren = (boundsTarget as any).children.filter((c: any) => typeof c.x === 'number');
+        if (boundsChildren.length === 0) {
+          respond('content-bounds', { minX: 0, minY: 0, maxX: 0, maxY: 0, empty: true, currentPage: getCurrentPageInfo() });
+        } else {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const c of boundsChildren) {
+            minX = Math.min(minX, c.x);
+            minY = Math.min(minY, c.y);
+            maxX = Math.max(maxX, c.x + c.width);
+            maxY = Math.max(maxY, c.y + c.height);
+          }
+          respond('content-bounds', { minX, minY, maxX, maxY, empty: false, currentPage: getCurrentPageInfo() });
+        }
+        break;
+      }
 
       default:
         console.warn('Unknown message type:', msg.type);
@@ -320,6 +370,24 @@ figma.ui.onmessage = async (msg) => {
 // Type helper for nodes that can contain children
 function isContainerNode(node: BaseNode): node is FrameNode | GroupNode | ComponentNode | PageNode | SectionNode {
   return 'appendChild' in node;
+}
+
+// Returns the active page id+name — included in every creation/mutation response
+// so the caller always knows which page was modified without a separate query.
+function getCurrentPageInfo() {
+  return { id: figma.currentPage.id, name: figma.currentPage.name };
+}
+
+// Returns the canvas-space position and dimensions of a node.
+// Use spread syntax to merge into creation responses, eliminating a follow-up
+// figma_get_node call just to learn where the created node landed.
+function nodePlacement(node: any): { x: number; y: number; width: number; height: number } {
+  return {
+    x: typeof node.x === 'number' ? node.x : 0,
+    y: typeof node.y === 'number' ? node.y : 0,
+    width: typeof node.width === 'number' ? node.width : 0,
+    height: typeof node.height === 'number' ? node.height : 0,
+  };
 }
 
 // ===== DESIGN OPERATIONS =====
