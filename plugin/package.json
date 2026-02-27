@@ -1,6 +1,6 @@
 {
   "name": "figma-claude-bridge-plugin",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "description": "Figma plugin that enables Claude AI to design in Figma",
   "main": "dist/code.js",
   "scripts": {
