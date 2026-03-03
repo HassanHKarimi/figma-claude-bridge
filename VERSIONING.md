@@ -22,3 +22,4 @@ Both `mcp-server/package.json` and `plugin/package.json` are always kept in sync
 | `0.1.0` | — | Initial tool set: create/modify/delete nodes, styles, variables, selection, export |
 | `0.2.0` | #2 | Batch tools: `figma_create_variables_batch`, `figma_delete_variables_batch`, `figma_clone_nodes_batch`, `figma_update_nodes_batch`, `figma_get_local_variables` namePrefix filter |
 | `0.3.0` | #3 | Placement safety: `currentPage` + position in all responses, `figma_get_page_children`, `figma_get_content_bounds` |
+| `0.3.1` | #5 | Fix multi-instance port conflict: primary/relay architecture for shared Figma plugin connection |
