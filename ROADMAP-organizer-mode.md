@@ -32,22 +32,24 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 **Goal:** Establish the mode switch UI and ship the first useful organizer features that don't require Claude.
 
 **Plugin UI changes (`plugin/src/ui.html`):**
-- [ ] Add Design / Organize tab bar at top of plugin panel
-- [ ] Organize tab shows action button grid instead of current activity log
-- [ ] Design tab retains existing UI (connections, activity log, quick actions)
+- [x] Add Design / Organize tab bar at top of plugin panel
+- [x] Organize tab shows action button grid instead of current activity log
+- [x] Design tab retains existing UI (connections, activity log, quick actions)
 - [ ] Persist selected mode across plugin sessions
 
 **Spatial action buttons (deterministic, no Claude needed):**
-- [ ] **Align Frames** — auto-arrange top-level frames on current page with consistent gutters (e.g., 100px horizontal, 200px vertical, grid or row layout)
-- [ ] **Sort Pages** — reorder pages alphabetically or by prefix convention
-- [ ] **Create Sections** — group selected frames into a named section
+- [x] **Align Frames** — auto-arrange top-level frames on current page with configurable gaps and auto/manual column count
+- [x] **Sort Pages** — reorder pages alphabetically (case-insensitive)
+- [x] **Create Sections** — group selected frames into a named section with 80px padding
 
 **Plugin code (`plugin/src/code.ts`):**
-- [ ] `align-frames` handler — reads top-level frame positions/sizes, calculates grid layout, repositions
-- [ ] `sort-pages` handler — reorders pages via Figma API
-- [ ] `create-section-from-selection` handler — wraps selected nodes in a section
+- [x] `align-frames` handler — reads top-level frame positions/sizes, calculates variable-width grid layout, repositions
+- [x] `sort-pages` handler — reorders pages via Figma API
+- [x] `create-section-from-selection` handler — wraps selected nodes in a section
 
 **No MCP tools needed for Phase 1** — these are plugin-internal actions triggered by UI buttons. The UI sends `postMessage` directly to `code.ts`.
+
+> **Status:** Code complete, not yet tested in Figma. Needs manual QA before moving to Phase 2.
 
 ---
 
@@ -162,6 +164,30 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 
 ---
 
+## Future / Backlog
+
+### CLI & MCP Migration
+After the organizer mode phases are complete, consider building a **standalone CLI** for the Figma bridge and potentially migrating away from MCP as the primary protocol.
+
+**Motivation:**
+- MCP adds a layer of indirection — tools must be registered at session start, server must be running, new sessions needed for new tools
+- A CLI (`figma-bridge align-frames`, `figma-bridge audit --page "Screens"`) would be more composable — usable from scripts, CI, git hooks, other tools
+- CLI could still use the WebSocket connection to the Figma plugin, but skip the MCP server layer entirely
+- Claude Code can call CLIs natively via Bash — no MCP registration needed, tools are always "available"
+
+**What this might look like:**
+- `figma-bridge` CLI that connects to the plugin WebSocket directly
+- Commands map 1:1 to plugin message types
+- MCP server becomes an optional wrapper for editors/tools that prefer MCP
+- Plugin stays the same — it doesn't care who's on the other end of the WebSocket
+
+**Open questions:**
+- Keep MCP as an option alongside CLI, or fully replace?
+- How does the in-plugin chat (Phase 6) interact with a CLI-first architecture?
+- Package distribution — npm global install? Homebrew?
+
+---
+
 ## Versioning
 
 Following the project's capability-milestone versioning:
@@ -169,3 +195,4 @@ Following the project's capability-milestone versioning:
 - Phase 3-4 → **0.5.0** (Componentizer)
 - Phase 5 → **0.5.x** (Compare, minor addition)
 - Phase 6 → **0.6.0** (In-plugin Chat)
+- CLI → **1.0.0** (standalone tool, major milestone)
