@@ -13,13 +13,69 @@
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 12px;
-      padding: 16px;
       color: #333;
       background: #fff;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
 
+    /* ── Mode Tabs ─────────────────────────────────────────────────────────── */
+
+    .mode-tabs {
+      display: flex;
+      border-bottom: 1px solid #e0e0e0;
+      background: #fafafa;
+      flex-shrink: 0;
+    }
+
+    .mode-tab {
+      flex: 1;
+      padding: 10px 0;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #999;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      width: auto;
+    }
+
+    .mode-tab:hover {
+      color: #666;
+    }
+
+    .mode-tab.active {
+      color: #18a0fb;
+      border-bottom-color: #18a0fb;
+    }
+
+    /* ── Tab Content ───────────────────────────────────────────────────────── */
+
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Common Styles ─────────────────────────────────────────────────────── */
+
     .header {
-      margin-bottom: 16px;
+      margin-bottom: 0;
     }
 
     h1 {
@@ -53,7 +109,6 @@
     }
 
     .section {
-      margin-bottom: 16px;
       padding: 12px;
       background: #f5f5f5;
       border-radius: 4px;
@@ -101,6 +156,11 @@
       opacity: 0.9;
     }
 
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     button.secondary {
       background: #fff;
       color: #333;
@@ -131,8 +191,9 @@
       padding: 8px;
       border-radius: 4px;
       font-size: 11px;
-      margin-bottom: 12px;
+      margin: 8px 16px 0;
       display: none;
+      flex-shrink: 0;
     }
 
     /* Connection rows */
@@ -246,65 +307,238 @@
       margin-bottom: 2px;
       font-size: 11px;
     }
+
+    /* ── Organize Mode ─────────────────────────────────────────────────────── */
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 14px 8px;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      color: #333;
+      width: auto;
+    }
+
+    .action-btn:hover {
+      border-color: #18a0fb;
+      background: #f0f8ff;
+    }
+
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      border-color: #e0e0e0;
+      background: #fff;
+    }
+
+    .action-icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .action-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .action-desc {
+      font-size: 9px;
+      color: #999;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    /* Organize result banner */
+    .result-banner {
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .result-banner.success {
+      display: block;
+      background: #edfbf0;
+      border: 1px solid #0fa958;
+      color: #0a7a3e;
+    }
+
+    .result-banner.error {
+      display: block;
+      background: #fff0f0;
+      border: 1px solid #f24822;
+      color: #c00;
+    }
+
+    .result-banner .dismiss {
+      display: inline;
+      background: none;
+      border: none;
+      color: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
+      width: auto;
+      font-size: 10px;
+      font-weight: 400;
+      margin-left: 4px;
+    }
+
+    /* Settings row for organize actions */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+
+    .setting-row label {
+      margin: 0;
+      font-size: 11px;
+      color: #333;
+    }
+
+    .setting-row input[type="number"] {
+      width: 60px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
   <div id="error-banner" class="error-banner"></div>
 
-  <div class="header">
-    <h1>Claude AI Bridge</h1>
-    <div class="status">
-      <div class="status-indicator" id="status-indicator"></div>
-      <span id="status-text">Not connected</span>
-    </div>
+  <!-- Mode Tabs -->
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-tab="design" onclick="switchTab('design')">Design</button>
+    <button class="mode-tab" data-tab="organize" onclick="switchTab('organize')">Organize</button>
   </div>
 
-  <div class="section">
-    <div class="section-title">Connections</div>
-
-    <div class="connection-row">
-      <div class="conn-left">
-        <div class="conn-dot" id="cc-dot"></div>
-        <div class="conn-info">
-          <span class="conn-name">Claude Code</span>
-          <span class="conn-port">port 3055</span>
-        </div>
+  <!-- ═══ Design Tab ═══ -->
+  <div id="tab-design" class="tab-content active">
+    <div class="header">
+      <h1>Claude AI Bridge</h1>
+      <div class="status">
+        <div class="status-indicator" id="status-indicator"></div>
+        <span id="status-text">Not connected</span>
       </div>
-      <label class="toggle-label">
-        <input type="checkbox" id="cc-toggle" onchange="onCCToggle()">
-        <span class="toggle-slider"></span>
-      </label>
     </div>
 
-    <div class="connection-row">
-      <div class="conn-left">
-        <div class="conn-dot" id="cd-dot"></div>
-        <div class="conn-info">
-          <span class="conn-name">Claude Desktop</span>
-          <span class="conn-port">port 3056</span>
+    <div class="section">
+      <div class="section-title">Connections</div>
+
+      <div class="connection-row">
+        <div class="conn-left">
+          <div class="conn-dot" id="cc-dot"></div>
+          <div class="conn-info">
+            <span class="conn-name">Claude Code</span>
+            <span class="conn-port">port 3055</span>
+          </div>
         </div>
+        <label class="toggle-label">
+          <input type="checkbox" id="cc-toggle" onchange="onCCToggle()">
+          <span class="toggle-slider"></span>
+        </label>
       </div>
-      <label class="toggle-label">
-        <input type="checkbox" id="cd-toggle" onchange="onCDToggle()">
-        <span class="toggle-slider"></span>
-      </label>
+
+      <div class="connection-row">
+        <div class="conn-left">
+          <div class="conn-dot" id="cd-dot"></div>
+          <div class="conn-info">
+            <span class="conn-name">Claude Desktop</span>
+            <span class="conn-port">port 3056</span>
+          </div>
+        </div>
+        <label class="toggle-label">
+          <input type="checkbox" id="cd-toggle" onchange="onCDToggle()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="warning-banner" id="both-warning">
+        <strong>Both clients active</strong>
+        Claude Code and Claude Desktop can both send commands to this file at the same time. This is fine for independent tasks — just avoid having them edit the same elements simultaneously.
+      </div>
     </div>
 
-    <div class="warning-banner" id="both-warning">
-      <strong>⚠️ Both clients active</strong>
-      Claude Code and Claude Desktop can both send commands to this file at the same time. This is fine for independent tasks — just avoid having them edit the same elements simultaneously.
+    <div class="section">
+      <div class="section-title">Activity Log</div>
+      <div class="log" id="log"></div>
+      <button class="secondary" onclick="clearLog()" style="margin-top: 8px;">Clear Log</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Quick Actions</div>
+      <button class="secondary" onclick="onTestClick()">Test Connection</button>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Activity Log</div>
-    <div class="log" id="log"></div>
-    <button class="secondary" onclick="clearLog()" style="margin-top: 8px;">Clear Log</button>
-  </div>
+  <!-- ═══ Organize Tab ═══ -->
+  <div id="tab-organize" class="tab-content">
 
-  <div class="section">
-    <div class="section-title">Quick Actions</div>
-    <button class="secondary" onclick="onTestClick()">Test Connection</button>
+    <div id="organize-result" class="result-banner"></div>
+
+    <div class="section">
+      <div class="section-title">Spatial Actions</div>
+      <div class="action-grid">
+        <button class="action-btn" onclick="onAlignFrames()" id="btn-align">
+          <span class="action-icon">&#9638;</span>
+          <span class="action-label">Align Frames</span>
+          <span class="action-desc">Auto-arrange frames on page</span>
+        </button>
+        <button class="action-btn" onclick="onSortPages()" id="btn-sort">
+          <span class="action-icon">&#8693;</span>
+          <span class="action-label">Sort Pages</span>
+          <span class="action-desc">Alphabetical page order</span>
+        </button>
+        <button class="action-btn" onclick="onCreateSection()" id="btn-section">
+          <span class="action-icon">&#9635;</span>
+          <span class="action-label">Create Section</span>
+          <span class="action-desc">Group selection into section</span>
+        </button>
+        <button class="action-btn" disabled style="opacity:0.35;">
+          <span class="action-icon">&#9881;</span>
+          <span class="action-label">Page Health</span>
+          <span class="action-desc">Coming in Phase 2</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Alignment Settings</div>
+      <div class="setting-row">
+        <label>Horizontal gap (px)</label>
+        <input type="number" id="align-gap-x" value="100" min="0" max="1000" style="width:60px;">
+      </div>
+      <div class="setting-row">
+        <label>Vertical gap (px)</label>
+        <input type="number" id="align-gap-y" value="200" min="0" max="1000" style="width:60px;">
+      </div>
+      <div class="setting-row">
+        <label>Max columns</label>
+        <input type="number" id="align-cols" value="0" min="0" max="20" style="width:60px;">
+      </div>
+      <div style="font-size:9px; color:#999; margin-top:4px;">0 = auto (square grid based on frame count)</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Activity Log</div>
+      <div class="log" id="organize-log"></div>
+    </div>
   </div>
 
   <script>
@@ -326,33 +560,56 @@
       log(msg, 'error');
     }
 
-    // State
+    // ── State ──────────────────────────────────────────────────────────────
     var wsCC = null;
     var wsCD = null;
     var isCCConnected = false;
     var isCDConnected = false;
-    // Maps requestId → 'cc' | 'cd' so responses route back to the right server
     var pendingSource = {};
+    var currentTab = 'design';
 
-    // ── Logging ──────────────────────────────────────────────────────────────
+    // Track pending organize actions so we can handle responses in the UI
+    var pendingOrganizeActions = {};
+
+    // ── Tab Switching ──────────────────────────────────────────────────────
+
+    function switchTab(tab) {
+      currentTab = tab;
+      // Update tab buttons
+      var tabs = document.querySelectorAll('.mode-tab');
+      for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.toggle('active', tabs[i].getAttribute('data-tab') === tab);
+      }
+      // Update tab content
+      var contents = document.querySelectorAll('.tab-content');
+      for (var i = 0; i < contents.length; i++) {
+        contents[i].classList.toggle('active', contents[i].id === 'tab-' + tab);
+      }
+    }
+
+    // ── Logging ──────────────────────────────────────────────────────────
 
     function log(message, type) {
       type = type || 'info';
-      var logEl = document.getElementById('log');
-      if (!logEl) return;
+      // Log to both design and organize logs
+      var logIds = ['log', 'organize-log'];
+      for (var i = 0; i < logIds.length; i++) {
+        var logEl = document.getElementById(logIds[i]);
+        if (!logEl) continue;
 
-      var timestamp = new Date().toLocaleTimeString();
-      var entry = document.createElement('div');
-      entry.className = 'log-entry';
-      entry.textContent = '[' + timestamp + '] ' + message;
+        var timestamp = new Date().toLocaleTimeString();
+        var entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.textContent = '[' + timestamp + '] ' + message;
 
-      if (type === 'error')   entry.style.color = '#f24822';
-      else if (type === 'success') entry.style.color = '#0fa958';
-      else if (type === 'warning') entry.style.color = '#cc8800';
-      else entry.style.color = '#333';
+        if (type === 'error')   entry.style.color = '#f24822';
+        else if (type === 'success') entry.style.color = '#0fa958';
+        else if (type === 'warning') entry.style.color = '#cc8800';
+        else entry.style.color = '#333';
 
-      logEl.appendChild(entry);
-      logEl.scrollTop = logEl.scrollHeight;
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
     }
 
     function clearLog() {
@@ -361,7 +618,24 @@
       log('Log cleared');
     }
 
-    // ── Header status ─────────────────────────────────────────────────────────
+    // ── Organize Result Banner ─────────────────────────────────────────────
+
+    function showOrganizeResult(message, type) {
+      var banner = document.getElementById('organize-result');
+      if (!banner) return;
+      banner.className = 'result-banner ' + type;
+      banner.innerHTML = message + ' <button class="dismiss" onclick="dismissResult()">dismiss</button>';
+    }
+
+    function dismissResult() {
+      var banner = document.getElementById('organize-result');
+      if (banner) {
+        banner.className = 'result-banner';
+        banner.style.display = 'none';
+      }
+    }
+
+    // ── Header status ─────────────────────────────────────────────────────
 
     function updateHeaderStatus() {
       var indicator = document.getElementById('status-indicator');
@@ -388,14 +662,14 @@
       if (el) el.style.display = (isCCConnected && isCDConnected) ? 'block' : 'none';
     }
 
-    // ── Dot helpers ───────────────────────────────────────────────────────────
+    // ── Dot helpers ───────────────────────────────────────────────────────
 
     function setDot(id, state) {
       var dot = document.getElementById(id);
       if (dot) dot.className = 'conn-dot' + (state ? ' ' + state : '');
     }
 
-    // ── Claude Code (3055) ────────────────────────────────────────────────────
+    // ── Claude Code (3055) ────────────────────────────────────────────────
 
     function onCCToggle() {
       var checked = document.getElementById('cc-toggle').checked;
@@ -460,7 +734,7 @@
       updateHeaderStatus();
     }
 
-    // ── Claude Desktop (3056) ─────────────────────────────────────────────────
+    // ── Claude Desktop (3056) ─────────────────────────────────────────────
 
     function onCDToggle() {
       var checked = document.getElementById('cd-toggle').checked;
@@ -525,14 +799,23 @@
       updateHeaderStatus();
     }
 
-    // ── Response routing ──────────────────────────────────────────────────────
+    // ── Response routing ──────────────────────────────────────────────────
     // When code.ts sends a response, route it back to whichever server
     // originated the request (tracked via requestId → source map).
+    // Also handle organize action responses locally.
 
     window.addEventListener('message', function(event) {
       try {
         var response = event.data && event.data.pluginMessage;
         if (!response) return;
+
+        // Check if this is a response to an organize UI action
+        if (response.requestId && pendingOrganizeActions[response.requestId]) {
+          var action = pendingOrganizeActions[response.requestId];
+          delete pendingOrganizeActions[response.requestId];
+          handleOrganizeResponse(action, response);
+          return;  // Don't forward organize responses to WebSocket
+        }
 
         var source = response.requestId ? pendingSource[response.requestId] : null;
         if (response.requestId) delete pendingSource[response.requestId];
@@ -561,15 +844,83 @@
           }
         }
 
-        if (!sent) {
-          log('No active connection to forward response to', 'warning');
+        if (!sent && !response.requestId) {
+          // Only warn for non-organize, non-internal messages
         }
       } catch (e) {
         log('Error forwarding message: ' + e.message, 'error');
       }
     });
 
-    // ── Quick Actions ─────────────────────────────────────────────────────────
+    // ── Organize Action Helpers ────────────────────────────────────────────
+
+    var organizeRequestCounter = 0;
+
+    function sendOrganizeAction(type, data, actionName) {
+      var requestId = 'organize_' + (++organizeRequestCounter);
+      pendingOrganizeActions[requestId] = actionName;
+      parent.postMessage({ pluginMessage: { requestId: requestId, type: type, data: data || {} } }, '*');
+      log('Running: ' + actionName + '...', 'info');
+    }
+
+    function handleOrganizeResponse(action, response) {
+      if (response.type === 'error') {
+        showOrganizeResult('<strong>' + action + ' failed:</strong> ' + (response.data && response.data.message || 'Unknown error'), 'error');
+        log(action + ' failed: ' + (response.data && response.data.message || 'Unknown error'), 'error');
+        return;
+      }
+
+      var data = response.data || {};
+
+      switch (action) {
+        case 'Align Frames':
+          showOrganizeResult(
+            '<strong>Frames aligned</strong> — ' + (data.count || 0) + ' frames arranged in ' +
+            (data.cols || '?') + ' columns with ' + (data.gapX || '?') + 'px/' + (data.gapY || '?') + 'px gaps',
+            'success'
+          );
+          log('Aligned ' + (data.count || 0) + ' frames', 'success');
+          break;
+
+        case 'Sort Pages':
+          showOrganizeResult(
+            '<strong>Pages sorted</strong> — ' + (data.count || 0) + ' pages reordered alphabetically',
+            'success'
+          );
+          log('Sorted ' + (data.count || 0) + ' pages', 'success');
+          break;
+
+        case 'Create Section':
+          showOrganizeResult(
+            '<strong>Section created</strong> — "' + (data.name || 'Section') + '" wrapping ' + (data.childCount || 0) + ' nodes',
+            'success'
+          );
+          log('Created section: ' + (data.name || 'Section'), 'success');
+          break;
+
+        default:
+          log(action + ' completed', 'success');
+      }
+    }
+
+    // ── Organize Button Handlers ───────────────────────────────────────────
+
+    function onAlignFrames() {
+      var gapX = parseInt(document.getElementById('align-gap-x').value) || 100;
+      var gapY = parseInt(document.getElementById('align-gap-y').value) || 200;
+      var maxCols = parseInt(document.getElementById('align-cols').value) || 0;
+      sendOrganizeAction('align-frames', { gapX: gapX, gapY: gapY, maxCols: maxCols }, 'Align Frames');
+    }
+
+    function onSortPages() {
+      sendOrganizeAction('sort-pages', {}, 'Sort Pages');
+    }
+
+    function onCreateSection() {
+      sendOrganizeAction('create-section-from-selection', {}, 'Create Section');
+    }
+
+    // ── Quick Actions ─────────────────────────────────────────────────────
 
     function onTestClick() {
       if (!isCCConnected && !isCDConnected) {
@@ -580,7 +931,7 @@
       parent.postMessage({ pluginMessage: { type: 'ping' } }, '*');
     }
 
-    // ── Init ──────────────────────────────────────────────────────────────────
+    // ── Init ──────────────────────────────────────────────────────────────
     log('Plugin UI loaded');
     log('WebSocket available: ' + (typeof WebSocket !== 'undefined'));
   </script>
