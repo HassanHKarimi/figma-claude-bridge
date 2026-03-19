@@ -49,7 +49,7 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 
 **No MCP tools needed for Phase 1** — these are plugin-internal actions triggered by UI buttons. The UI sends `postMessage` directly to `code.ts`.
 
-> **Status:** Code complete, not yet tested in Figma. Needs manual QA before moving to Phase 2.
+> **Status:** Complete. Merged PR #6, QA passed (2026-03-19).
 
 ---
 
@@ -57,20 +57,24 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 **Goal:** Build the aggregation layer so Claude (and the UI) can understand a file without reading every layer.
 
 **New plugin handlers (run inside Figma, return summaries):**
-- [ ] `get-page-summary` — returns: frame count, section count, auto-named layer count, deepest nesting level, detached instance count, component instance count
-- [ ] `get-naming-report` — returns list of auto-generated names ("Frame 47", "Rectangle 12") grouped by parent, with counts
-- [ ] `get-style-audit` — returns: hardcoded colors (not bound to variables), hardcoded fonts (not using text styles), with node IDs and values
-- [ ] `get-spatial-report` — returns: overlapping frames, frames outside canvas bounds, inconsistent spacing between frames
+- [x] `get-page-summary` — returns: frame count, section count, auto-named layer count, deepest nesting level, detached instance count, component instance count
+- [x] `get-naming-report` — returns list of auto-generated names ("Frame 47", "Rectangle 12") grouped by parent, with counts
+- [x] `get-style-audit` — returns: hardcoded colors (not bound to variables), hardcoded fonts (not using text styles), with node IDs and values
+- [x] `get-spatial-report` — returns: overlapping frames, frames outside canvas bounds, inconsistent spacing between frames
 
 **New CLI commands (`cli/src/commands.ts`):**
-- [ ] `get-page-summary` — exposes plugin handler to Claude via CLI
-- [ ] `get-naming-report` — exposes plugin handler to Claude via CLI
-- [ ] `get-style-audit` — exposes plugin handler to Claude via CLI
-- [ ] `get-spatial-report` — exposes plugin handler to Claude via CLI
+- [x] `get-page-summary` — exposes plugin handler to Claude via CLI
+- [x] `get-naming-report` — exposes plugin handler to Claude via CLI
+- [x] `get-style-audit` — exposes plugin handler to Claude via CLI
+- [x] `get-spatial-report` — exposes plugin handler to Claude via CLI
 
 **Organize UI additions:**
-- [ ] **Page Health** button — runs `get-page-summary`, displays scorecard in UI (green/yellow/red indicators)
-- [ ] **Naming Issues** button — runs `get-naming-report`, displays list with "Fix All" option
+- [x] **Page Health** button — runs `get-page-summary`, displays scorecard in audit panel
+- [x] **Naming Issues** button — runs `get-naming-report`, displays grouped list in audit panel
+- [x] **Style Audit** button — runs `get-style-audit`, displays hardcoded colors/fonts with swatches
+- [x] **Spatial Check** button — runs `get-spatial-report`, displays overlaps and spacing
+
+> **Status:** Complete. Merged PR #7, CLI-tested against real file (2026-03-19).
 
 ---
 
