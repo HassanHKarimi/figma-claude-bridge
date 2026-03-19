@@ -1,0 +1,25 @@
+{
+  "name": "figma-bridge",
+  "version": "0.4.0",
+  "description": "CLI bridge to Figma plugin — send commands to Figma from the terminal",
+  "type": "module",
+  "bin": {
+    "figma-bridge": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "author": "Hassan Karimi <https://github.com/HassanHKarimi>",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.3"
+  }
+}

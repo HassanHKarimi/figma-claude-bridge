@@ -1,331 +1,168 @@
-# Figma Design Skill
+# Figma Bridge Skill
 
-This skill enables Claude to create professional designs in Figma through the Figma-Claude Bridge.
+Design in Figma via the `figma-bridge` CLI. All commands send JSON to the Figma plugin over WebSocket and return JSON to stdout.
 
-## Overview
+## Prerequisites
 
-Claude can now design in Figma with full control over:
-- Creating and modifying design elements
-- Building responsive layouts with Auto Layout
-- Creating design systems and components
-- Managing styles and design tokens
-- Exporting assets
+The bridge server must be running: `figma-bridge serve`
+Check status: `figma-bridge status`
 
-## Available Tools
+## Command Format
 
-### Document Operations
-- `figma_get_document_info` - Get current document structure
-- `figma_get_node` - Get details about a specific element
+```bash
+figma-bridge <command> ['{"key": "value"}']
+```
 
-### Creation Tools
-- `figma_create_frame` - Create containers/artboards
-- `figma_create_rectangle` - Create rectangle shapes
-- `figma_create_text` - Create text layers
-- `figma_create_ellipse` - Create circles/ellipses
-- `figma_create_component` - Create reusable components
+All arguments are a single JSON string. No args needed for commands like `get-document-info`.
 
-### Modification Tools
-- `figma_modify_node` - Change properties of elements
-- `figma_delete_node` - Remove elements
-- `figma_apply_auto_layout` - Make responsive layouts
+## Workflow
 
-### Style & Organization
-- `figma_create_style` - Create reusable styles
-- `figma_get_selection` - Get selected elements
-- `figma_set_selection` - Select elements
+### 1. Understand Context First
+```bash
+figma-bridge get-document-info
+figma-bridge get-page-children
+figma-bridge get-content-bounds
+```
 
-### Export
-- `figma_export_node` - Export as PNG, JPG, SVG, or PDF
+### 2. Build Top-Down
+Create parent frames first, then children. Use the returned `id` for subsequent operations.
 
-## Design Workflow
+```bash
+# Create a screen
+figma-bridge create-frame '{"name":"Home Screen","width":375,"height":812,"fills":["#FFFFFF"]}'
 
-### 1. Start by Understanding Context
-Always begin with `figma_get_document_info` to understand:
-- Current page structure
-- Existing elements
-- What's selected
+# Add a child (use parent id from above)
+figma-bridge create-frame '{"name":"Header","width":375,"height":60,"fills":["#1E1E1E"],"parent":"123:45"}'
 
-### 2. Create Systematically
-Build designs hierarchically:
-1. Create parent frames first
-2. Add child elements
-3. Apply Auto Layout for responsiveness
-4. Set styles and colors
+# Apply Auto Layout
+figma-bridge apply-auto-layout '{"id":"123:46","layoutMode":"HORIZONTAL","primaryAxisAlignItems":"SPACE_BETWEEN","counterAxisAlignItems":"CENTER","paddingLeft":20,"paddingRight":20}'
+
+# Add text
+figma-bridge create-text '{"characters":"Home","fontSize":18,"fontName":{"family":"Inter","style":"SemiBold"},"fills":["#FFFFFF"],"parent":"123:46"}'
+```
 
 ### 3. Use Proper Hierarchy
 ```
 Page
-  └─ Frame (artboard/screen)
+  └─ Frame (screen/artboard)
       └─ Frame (section with Auto Layout)
           ├─ Text
           ├─ Rectangle
           └─ Frame (nested component)
 ```
 
+## Command Reference
+
+### Document
+| Command | Args | Description |
+|---------|------|-------------|
+| `get-document-info` | — | Document structure, pages, selection |
+| `get-node` | `id` | Node details by ID |
+| `get-node-tree` | `id`, `depth?` | Node + descendants (default depth 10) |
+| `find-nodes-by-name` | `parentId`, `name`, `type?` | Find nodes by name in subtree |
+| `get-page-children` | `id?` | Direct children with positions/sizes |
+| `get-content-bounds` | `id?` | Bounding box of all content |
+
+### Create
+| Command | Args | Description |
+|---------|------|-------------|
+| `create-frame` | `name?`, `x?`, `y?`, `width?`, `height?`, `fills?`, `cornerRadius?`, `parent?` | Create a frame |
+| `create-rectangle` | `name?`, `x?`, `y?`, `width?`, `height?`, `fills?`, `cornerRadius?`, `parent?` | Create a rectangle |
+| `create-text` | `characters`, `name?`, `x?`, `y?`, `fontSize?`, `fontName?`, `fills?`, `parent?` | Create text |
+| `create-ellipse` | `name?`, `x?`, `y?`, `width?`, `height?`, `fills?`, `parent?` | Create ellipse |
+| `create-line` | `name?`, `length?`, `rotation?`, `strokes?`, `strokeWeight?`, `parent?` | Create line |
+| `create-component` | `name`, `width?`, `height?`, `parent?` | Create component |
+| `create-component-from-node` | `nodeId` | Convert node to component |
+| `create-component-set` | `componentIds` | Create variant group |
+| `add-variant` | `componentSetId`, `name?` | Add variant to component set |
+| `create-section` | `name?`, `x?`, `y?`, `width?`, `height?`, `fills?` | Create section |
+| `create-page` | `name?`, `switchToPage?` | Create page |
+| `create-page-divider` | `name?` | Create page divider |
+| `create-text-path` | `nodeId`, `characters`, `fontSize?`, `fontName?` | Text on path |
+
+### Modify
+| Command | Args | Description |
+|---------|------|-------------|
+| `modify-node` | `id`, `name?`, `x?`, `y?`, `width?`, `height?`, `fills?`, `opacity?`, `visible?`, `locked?`, `cornerRadius?`, `rotation?` | Modify node properties |
+| `delete-node` | `id` | Delete a node |
+| `set-text-content` | `id`, `characters`, `fontName?`, `fontSize?`, `fills?` | Set text content |
+| `set-text-style` | `id`, `fontName?`, `fontSize?`, `textAlignHorizontal?`, `textAlignVertical?`, `lineHeight?`, `letterSpacing?`, `textDecoration?`, `textCase?`, `textAutoResize?` | Set text styling |
+| `set-strokes` | `id`, `strokes`, `strokeWeight?`, `strokeAlign?`, `dashPattern?` | Set borders |
+| `set-effects` | `id`, `effects` | Set shadows/blurs |
+| `apply-auto-layout` | `id`, `layoutMode?`, `primaryAxisSizingMode?`, `counterAxisSizingMode?`, `paddingLeft?`, `paddingRight?`, `paddingTop?`, `paddingBottom?`, `itemSpacing?`, `primaryAxisAlignItems?`, `counterAxisAlignItems?` | Apply Auto Layout |
+| `clone-node` | `id`, `name?`, `x?`, `y?` | Duplicate a node |
+| `move-node` | `id`, `parentId`, `index?` | Reparent a node |
+| `group-nodes` | `ids`, `name?` | Group nodes |
+| `ungroup` | `id` | Ungroup |
+| `boolean-operation` | `operation`, `nodeIds`, `name?` | Union/subtract/intersect/exclude |
+
+### Styles
+| Command | Args | Description |
+|---------|------|-------------|
+| `create-style` | `type`, `name`, `description?`, `properties` | Create style (PAINT/TEXT/EFFECT/GRID) |
+| `get-style` | `id` | Get style by ID |
+| `list-styles` | `type?` | List all local styles |
+| `update-style` | `id`, `name?`, `description?`, `properties?` | Update style |
+| `delete-style` | `id` | Delete style |
+| `apply-style` | `nodeId`, `styleId`, `styleType` | Apply style to node |
+| `get-node-styles` | `nodeId` | Get styles on a node |
+| `detach-style` | `nodeId`, `styleType` | Detach style from node |
+
+### Variables (Design Tokens)
+| Command | Args | Description |
+|---------|------|-------------|
+| `create-variable-collection` | `name`, `initialModeRename?`, `modes?` | Create token collection |
+| `create-variable` | `name`, `collectionId`, `resolvedType`, `values?`, `description?`, `scopes?` | Create variable |
+| `get-local-variables` | `type?`, `namePrefix?` | List variables |
+| `get-local-variable-collections` | — | List collections |
+| `update-variable` | `variableId`, `name?`, `description?`, `values?`, `scopes?` | Update variable |
+| `delete-variable` | `variableId` | Delete variable |
+| `delete-variable-collection` | `collectionId` | Delete collection |
+| `rename-variable-collection-mode` | `collectionId`, `modeId`, `newName` | Rename mode |
+| `add-collection-mode` | `collectionId`, `name` | Add mode |
+| `bind-variable-to-node` | `nodeId`, `variableId`, `field`, `index?` | Bind token to node |
+| `bind-variable-to-style` | `styleId`, `variableId`, `field` | Bind token to style |
+
+### Selection
+| Command | Args | Description |
+|---------|------|-------------|
+| `get-selection` | — | Get selected nodes |
+| `set-selection` | `ids` | Set selection |
+
+### Export
+| Command | Args | Description |
+|---------|------|-------------|
+| `export-node` | `id`, `format?`, `scale?` | Export as PNG/JPG/SVG/PDF |
+
+### Batch Operations
+| Command | Args | Description |
+|---------|------|-------------|
+| `create-variables-batch` | `collectionId`, `variables` | Create multiple variables |
+| `delete-variables-batch` | `variableIds` | Delete multiple variables |
+| `clone-nodes-batch` | `nodes` | Clone multiple nodes |
+| `update-nodes-batch` | `updates` | Update multiple nodes |
+
+### Organize
+| Command | Args | Description |
+|---------|------|-------------|
+| `align-frames` | `gap?`, `columns?` | Auto-arrange top-level frames |
+| `sort-pages` | — | Sort pages alphabetically |
+| `create-section-from-selection` | `name?` | Wrap selection in section |
+
 ## Best Practices
 
-### Colors
-Use hex format for simplicity:
-```typescript
-fills: ["#FF5733"]  // Simple hex color
-// or
-fills: [{
-  type: "SOLID",
-  color: { r: 1, g: 0.34, b: 0.2 },
-  opacity: 1
-}]
-```
-
-### Auto Layout for Responsive Design
-Always use Auto Layout for modern, responsive designs:
-```typescript
-// Create a vertical stack
-figma_create_frame({
-  name: "Card",
-  width: 300,
-  height: 400
-})
-
-// Then apply Auto Layout
-figma_apply_auto_layout({
-  id: frameId,
-  layoutMode: "VERTICAL",
-  itemSpacing: 16,
-  paddingLeft: 24,
-  paddingRight: 24,
-  paddingTop: 24,
-  paddingBottom: 24
-})
-```
-
-### Typography
-Load fonts before creating text:
-```typescript
-figma_create_text({
-  characters: "Hello World",
-  fontSize: 24,
-  fontName: { family: "Inter", style: "Bold" },
-  fills: ["#000000"]
-})
-```
-
-### Component-Based Design
-Create reusable components:
-```typescript
-// 1. Create the design
-// 2. Convert to component
-figma_create_component({
-  name: "Button/Primary",
-  width: 200,
-  height: 48
-})
-```
-
-## Common Design Patterns
-
-### Mobile App Screen
-```typescript
-// 1. Create artboard
-const screen = figma_create_frame({
-  name: "Home Screen",
-  width: 375,
-  height: 812,
-  fills: ["#FFFFFF"]
-})
-
-// 2. Create header
-const header = figma_create_frame({
-  name: "Header",
-  width: 375,
-  height: 60,
-  fills: ["#1E1E1E"],
-  parent: screen.id
-})
-
-// 3. Apply Auto Layout to header
-figma_apply_auto_layout({
-  id: header.id,
-  layoutMode: "HORIZONTAL",
-  primaryAxisAlignItems: "SPACE_BETWEEN",
-  counterAxisAlignItems: "CENTER",
-  paddingLeft: 20,
-  paddingRight: 20
-})
-
-// 4. Add title
-figma_create_text({
-  characters: "Home",
-  fontSize: 18,
-  fontName: { family: "Inter", style: "SemiBold" },
-  fills: ["#FFFFFF"],
-  parent: header.id
-})
-```
-
-### Card Component
-```typescript
-// 1. Create card frame
-const card = figma_create_frame({
-  name: "Card",
-  width: 300,
-  height: 200
-})
-
-// 2. Make it rounded
-figma_modify_node({
-  id: card.id,
-  fills: ["#FFFFFF"]
-})
-
-// Add corner radius via rectangle
-const bg = figma_create_rectangle({
-  width: 300,
-  height: 200,
-  cornerRadius: 12,
-  fills: ["#FFFFFF"],
-  parent: card.id
-})
-
-// 3. Apply Auto Layout
-figma_apply_auto_layout({
-  id: card.id,
-  layoutMode: "VERTICAL",
-  itemSpacing: 12,
-  paddingLeft: 20,
-  paddingRight: 20,
-  paddingTop: 20,
-  paddingBottom: 20
-})
-```
-
-### Design System Colors
-```typescript
-// Create color styles
-figma_create_style({
-  type: "PAINT",
-  name: "Primary/500",
-  properties: {
-    paints: ["#3B82F6"]
-  }
-})
-
-figma_create_style({
-  type: "PAINT",
-  name: "Neutral/900",
-  properties: {
-    paints: ["#18181B"]
-  }
-})
-```
-
-## Example: Complete Landing Page Hero
-
-```typescript
-// 1. Get document info
-const doc = figma_get_document_info()
-
-// 2. Create desktop artboard
-const hero = figma_create_frame({
-  name: "Hero Section",
-  width: 1440,
-  height: 600,
-  fills: ["#F9FAFB"]
-})
-
-// 3. Apply Auto Layout
-figma_apply_auto_layout({
-  id: hero.id,
-  layoutMode: "VERTICAL",
-  primaryAxisAlignItems: "CENTER",
-  counterAxisAlignItems: "CENTER",
-  itemSpacing: 32,
-  paddingTop: 120,
-  paddingBottom: 120
-})
-
-// 4. Add heading
-const heading = figma_create_text({
-  characters: "Design Beautiful Products",
-  fontSize: 64,
-  fontName: { family: "Inter", style: "Bold" },
-  fills: ["#18181B"],
-  parent: hero.id
-})
-
-// 5. Add subheading
-const subheading = figma_create_text({
-  characters: "Create stunning designs with AI assistance",
-  fontSize: 24,
-  fontName: { family: "Inter", style: "Regular" },
-  fills: ["#71717A"],
-  parent: hero.id
-})
-
-// 6. Create CTA button container
-const buttonContainer = figma_create_frame({
-  name: "CTA Button",
-  parent: hero.id
-})
-
-figma_apply_auto_layout({
-  id: buttonContainer.id,
-  layoutMode: "HORIZONTAL",
-  paddingLeft: 32,
-  paddingRight: 32,
-  paddingTop: 16,
-  paddingBottom: 16
-})
-
-// 7. Add button background
-const buttonBg = figma_create_rectangle({
-  width: 200,
-  height: 56,
-  cornerRadius: 8,
-  fills: ["#3B82F6"],
-  parent: buttonContainer.id
-})
-
-// 8. Add button text
-const buttonText = figma_create_text({
-  characters: "Get Started",
-  fontSize: 18,
-  fontName: { family: "Inter", style: "SemiBold" },
-  fills: ["#FFFFFF"],
-  parent: buttonContainer.id
-})
-```
-
-## Tips for Effective Design
-
-1. **Think in Frames**: Everything should be in frames for organization
-2. **Use Auto Layout**: Makes designs responsive and easier to modify
-3. **Name Everything**: Clear names make designs maintainable
-4. **Build Components**: Reuse common elements
-5. **Consistent Spacing**: Use multiples of 4 or 8 for spacing
-6. **Design Systems**: Create styles before using them throughout
-7. **Work Top-Down**: Create parent containers before children
+1. **Colors**: Use hex format `"fills": ["#FF5733"]` or paint objects `[{"type":"SOLID","color":{"r":1,"g":0.34,"b":0.2},"opacity":1}]`
+2. **Auto Layout**: Always apply for responsive design. Use `layoutMode`, `itemSpacing`, padding props.
+3. **Spacing**: Use multiples of 4 or 8.
+4. **Names**: Name every frame and component clearly.
+5. **Components**: Build reusable components, use "Property=Value" naming for variants.
+6. **Spatial awareness**: Call `get-content-bounds` or `get-page-children` before placing new content to avoid overlaps.
+7. **Top-down**: Create parent containers before children.
 
 ## Error Handling
 
-If operations fail:
-1. Check if plugin is connected (`figma_get_document_info` to test)
+If commands fail:
+1. Check server status: `figma-bridge status` — verify plugin is connected
 2. Verify node IDs exist before modifying
 3. Ensure parent frames exist before adding children
-4. Load fonts before using them in text
-
-## Use Cases
-
-### Landing Page
-Create marketing pages with hero sections, feature grids, pricing tables
-
-### App Screens
-Design mobile app interfaces with proper iOS/Android dimensions
-
-### Email Templates
-Build responsive email designs with proper constraints
-
-### Marketing Assets
-Generate social media graphics, banners, and promotional materials
-
-### Design System
-Create comprehensive component libraries and style guides
+4. Font loading is handled by the plugin — just specify `fontName` in create/set commands

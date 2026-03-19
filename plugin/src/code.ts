@@ -8,7 +8,7 @@ console.log('Claude AI Bridge plugin loaded');
 let isConnected = false;
 
 // Initialize plugin
-figma.showUI(__html__, { width: 300, height: 460, themeColors: true });
+figma.showUI(__html__, { width: 300, height: 520, themeColors: true });
 
 // Handle messages from UI (which communicates with MCP server)
 figma.ui.onmessage = async (msg) => {
@@ -352,6 +352,22 @@ figma.ui.onmessage = async (msg) => {
         }
         break;
       }
+
+      // ── Organizer Mode Actions ──────────────────────────────────────────
+      case 'align-frames':
+        const alignResult = await alignFramesOnPage(msg.data);
+        respond('frames-aligned', alignResult);
+        break;
+
+      case 'sort-pages':
+        const sortResult = sortPagesAlphabetically();
+        respond('pages-sorted', sortResult);
+        break;
+
+      case 'create-section-from-selection':
+        const sectionResult = createSectionFromSelection();
+        respond('section-from-selection-created', sectionResult);
+        break;
 
       default:
         console.warn('Unknown message type:', msg.type);
@@ -1144,6 +1160,140 @@ function serializeStyle(style: PaintStyle | TextStyle | EffectStyle | GridStyle)
     default:
       return base;
   }
+}
+
+// ===== ORGANIZER MODE HANDLERS =====
+
+async function alignFramesOnPage(data: any) {
+  const gapX = data.gapX ?? 100;
+  const gapY = data.gapY ?? 200;
+  const maxCols = data.maxCols ?? 0;
+
+  const page = figma.currentPage;
+  // Get only direct children that are frames/components/sections (top-level items)
+  const frames = page.children.filter(
+    (n) => n.type === 'FRAME' || n.type === 'COMPONENT' || n.type === 'COMPONENT_SET' || n.type === 'SECTION'
+  ) as SceneNode[];
+
+  if (frames.length === 0) {
+    return { count: 0, cols: 0, gapX, gapY, message: 'No frames found on current page' };
+  }
+
+  // Sort frames by their current position (top-to-bottom, left-to-right) to preserve logical order
+  frames.sort((a, b) => {
+    const rowDiff = Math.round(a.y / 100) - Math.round(b.y / 100);
+    if (rowDiff !== 0) return rowDiff;
+    return a.x - b.x;
+  });
+
+  // Determine column count: user-specified or auto (square-ish grid)
+  const cols = maxCols > 0 ? maxCols : Math.ceil(Math.sqrt(frames.length));
+
+  // Arrange in grid — each column's width is determined by the widest frame in that column
+  // First pass: determine column widths and row heights
+  const colWidths: number[] = [];
+  const rowHeights: number[] = [];
+
+  for (let i = 0; i < frames.length; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const f = frames[i];
+
+    if (!colWidths[col] || f.width > colWidths[col]) colWidths[col] = f.width;
+    if (!rowHeights[row] || f.height > rowHeights[row]) rowHeights[row] = f.height;
+  }
+
+  // Second pass: position each frame
+  for (let i = 0; i < frames.length; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+
+    let x = 0;
+    for (let c = 0; c < col; c++) x += colWidths[c] + gapX;
+
+    let y = 0;
+    for (let r = 0; r < row; r++) y += rowHeights[r] + gapY;
+
+    frames[i].x = x;
+    frames[i].y = y;
+  }
+
+  return { count: frames.length, cols, gapX, gapY };
+}
+
+function sortPagesAlphabetically() {
+  const pages = [...figma.root.children];
+  if (pages.length <= 1) {
+    return { count: pages.length, message: 'Only one page, nothing to sort' };
+  }
+
+  // Sort by name (case-insensitive)
+  const sorted = [...pages].sort((a, b) =>
+    a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+  );
+
+  // Check if already sorted
+  const alreadySorted = sorted.every((p, i) => p === pages[i]);
+  if (alreadySorted) {
+    return { count: pages.length, message: 'Pages already in alphabetical order' };
+  }
+
+  // Reorder by moving pages to the end in sorted order
+  for (const page of sorted) {
+    figma.root.appendChild(page);
+  }
+
+  return { count: pages.length };
+}
+
+function createSectionFromSelection() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No nodes selected. Select frames to group into a section.');
+  }
+
+  // Calculate bounding box of all selected nodes
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of selection) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + node.width);
+    maxY = Math.max(maxY, node.y + node.height);
+  }
+
+  // Add padding around the content
+  const padding = 80;
+  const section = figma.createSection();
+  section.name = 'Section';
+  section.x = minX - padding;
+  section.y = minY - padding;
+  section.resizeWithoutConstraints(
+    (maxX - minX) + padding * 2,
+    (maxY - minY) + padding * 2
+  );
+
+  // Move selected nodes into the section
+  // Adjust positions relative to the section's origin
+  for (const node of selection) {
+    const relX = node.x - section.x;
+    const relY = node.y - section.y;
+    section.appendChild(node);
+    node.x = relX;
+    node.y = relY;
+  }
+
+  // Select the new section
+  figma.currentPage.selection = [section];
+
+  return {
+    id: section.id,
+    name: section.name,
+    childCount: selection.length,
+    x: section.x,
+    y: section.y,
+    width: section.width,
+    height: section.height
+  };
 }
 
 // ===== NEW TOOL HANDLERS =====
