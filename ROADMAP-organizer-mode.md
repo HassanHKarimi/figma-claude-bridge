@@ -62,11 +62,11 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 - [ ] `get-style-audit` — returns: hardcoded colors (not bound to variables), hardcoded fonts (not using text styles), with node IDs and values
 - [ ] `get-spatial-report` — returns: overlapping frames, frames outside canvas bounds, inconsistent spacing between frames
 
-**New MCP tools (`mcp-server/src/tools/index.ts`):**
-- [ ] `figma_get_page_summary` — exposes `get-page-summary` to Claude
-- [ ] `figma_get_naming_report` — exposes `get-naming-report` to Claude
-- [ ] `figma_get_style_audit` — exposes `get-style-audit` to Claude
-- [ ] `figma_get_spatial_report` — exposes `get-spatial-report` to Claude
+**New CLI commands (`cli/src/commands.ts`):**
+- [ ] `get-page-summary` — exposes plugin handler to Claude via CLI
+- [ ] `get-naming-report` — exposes plugin handler to Claude via CLI
+- [ ] `get-style-audit` — exposes plugin handler to Claude via CLI
+- [ ] `get-spatial-report` — exposes plugin handler to Claude via CLI
 
 **Organize UI additions:**
 - [ ] **Page Health** button — runs `get-page-summary`, displays scorecard in UI (green/yellow/red indicators)
@@ -82,10 +82,10 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 - [ ] `flatten-nesting` — removes unnecessary wrapper groups (single-child groups, groups that just pass through positioning)
 - [ ] `find-detached-instances` — returns list of frames that were once component instances but are now detached
 
-**New MCP tools:**
-- [ ] `figma_rename_auto_layers` — Claude can invoke rename with scope
-- [ ] `figma_flatten_nesting` — Claude can invoke nesting cleanup
-- [ ] `figma_find_detached_instances` — Claude can query for detached instances
+**New CLI commands:**
+- [ ] `rename-auto-layers` — Claude can invoke rename with scope
+- [ ] `flatten-nesting` — Claude can invoke nesting cleanup
+- [ ] `find-detached-instances` — Claude can query for detached instances
 
 **Organize UI additions:**
 - [ ] **Rename Layers** button — runs on current page/selection, shows preview of renames before applying
@@ -99,9 +99,9 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 
 #### 4A — Variation Builder
 - [ ] `analyze-component-structure` plugin handler — given a frame/component, extracts: layer tree structure, text content, icon/image slots, toggle-like elements, state indicators. Returns a structural summary (not full tree).
-- [ ] `suggest-variations` MCP tool — Claude receives the structural summary and proposes a variation matrix (states, sizes, content variations) based on component type and design conventions
+- [ ] `suggest-variations` — Claude receives the structural summary via CLI and proposes a variation matrix (states, sizes, content variations) based on component type and design conventions
 - [ ] `build-variations` plugin handler — takes a source component + variation matrix, creates the component set with all specified variants, reusing existing styles/tokens
-- [ ] `figma_build_component_variations` MCP tool — end-to-end: analyze → suggest → build (with user confirmation between steps)
+- [ ] `build-component-variations` CLI command — end-to-end: analyze → suggest → build (with user confirmation between steps)
 
 **Organize UI:**
 - [ ] **Componentize** button — select a frame, click to start the variation builder flow. Shows proposed variations for user approval before building.
@@ -109,7 +109,7 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 #### 4B — Component Detector
 - [ ] `fingerprint-components` plugin handler — builds structural fingerprints (layer types, nesting pattern, text content patterns) for all components in the file. Cached per session.
 - [ ] `scan-for-unlinked-instances` plugin handler — walks current page, fingerprints each top-level frame, compares against component fingerprints using tree similarity. Returns matches above threshold with similarity score.
-- [ ] `figma_scan_unlinked_instances` MCP tool — exposes scan results to Claude
+- [ ] `scan-unlinked-instances` CLI command — exposes scan results to Claude
 - [ ] `convert-to-instance` plugin handler — replaces a frame with an instance of the matched component, preserving overrides where possible
 
 **Organize UI:**
@@ -121,7 +121,7 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 **Goal:** Side-by-side design QA between selected frames.
 
 - [ ] `compare-frames` plugin handler — given 2+ frame IDs, extracts and diffs: fonts used, color values (raw + variable bindings), spacing patterns, component instances used, layer structure
-- [ ] `figma_compare_frames` MCP tool — Claude receives the diff and interprets discrepancies
+- [ ] `compare-frames` CLI command — Claude receives the diff and interprets discrepancies
 - [ ] Compare button in **Design Mode** UI — select 2+ frames, click compare, see a diff report highlighting inconsistencies
 
 ---
@@ -129,11 +129,11 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 ### Phase 6 — In-Plugin Chat (Future)
 **Goal:** Users can talk to Claude directly in the Figma plugin UI.
 
-**Architecture: MCP server as Claude API proxy (Option A from planning)**
+**Architecture: figma-bridge server as Claude API proxy**
 
 - [ ] Add chat UI to plugin panel — input field + message thread, available in both modes
-- [ ] Add `/chat` WebSocket message type in MCP server
-- [ ] MCP server calls Claude API with Figma context (current page summary, selection info)
+- [ ] Add `/chat` message type in figma-bridge server
+- [ ] Server calls Claude API with Figma context (current page summary, selection info)
 - [ ] Stream responses back to plugin UI via WebSocket
 - [ ] Claude API key stored server-side (env var), never exposed to plugin
 - [ ] Chat Claude is lightweight — uses summary tools from Phase 2 for context, not full tree reads
@@ -143,13 +143,13 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 
 ## File Change Map
 
-| Phase | `plugin/src/ui.html` | `plugin/src/code.ts` | `mcp-server/src/tools/index.ts` | `mcp-server/src/index.ts` |
-|-------|---------------------|---------------------|--------------------------------|--------------------------|
+| Phase | `plugin/src/ui.html` | `plugin/src/code.ts` | `cli/src/commands.ts` | `cli/src/server.ts` |
+|-------|---------------------|---------------------|-----------------------|---------------------|
 | 1     | Mode tabs, button grid | 3 new handlers | — | — |
-| 2     | Health scorecard, naming list | 4 summary handlers | 4 new tools | — |
-| 3     | Rename/flatten/detached UI | 3 action handlers | 3 new tools | — |
-| 4     | Componentize + Find Unlinked UI | 4-5 handlers | 3-4 new tools | — |
-| 5     | Compare UI (design tab) | 1 handler | 1 new tool | — |
+| 2     | Health scorecard, naming list | 4 summary handlers | 4 new commands | — |
+| 3     | Rename/flatten/detached UI | 3 action handlers | 3 new commands | — |
+| 4     | Componentize + Find Unlinked UI | 4-5 handlers | 3-4 new commands | — |
+| 5     | Compare UI (design tab) | 1 handler | 1 new command | — |
 | 6     | Chat UI | — | — | Chat proxy endpoint |
 
 ---
