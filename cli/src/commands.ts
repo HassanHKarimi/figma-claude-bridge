@@ -93,6 +93,12 @@ export const commands: CommandDef[] = [
   { type: 'align-frames', description: 'Auto-arrange top-level frames on current page', category: 'Organize' },
   { type: 'sort-pages', description: 'Sort pages alphabetically', category: 'Organize' },
   { type: 'create-section-from-selection', description: 'Wrap selected frames in a section', category: 'Organize' },
+
+  // Audit (Phase 2)
+  { type: 'get-page-summary', description: 'Page health scorecard (counts, nesting, detached)', category: 'Audit' },
+  { type: 'get-naming-report', description: 'Find auto-generated layer names', category: 'Audit' },
+  { type: 'get-style-audit', description: 'Find hardcoded colors and fonts', category: 'Audit' },
+  { type: 'get-spatial-report', description: 'Detect overlaps and spacing issues', category: 'Audit' },
 ];
 
 export function printHelp() {

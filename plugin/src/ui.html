@@ -491,12 +491,34 @@
           <span class="action-label">Create Section</span>
           <span class="action-desc">Group selection into section</span>
         </button>
-        <button class="action-btn" disabled style="opacity:0.35;">
+        <button class="action-btn" onclick="onPageHealth()" id="btn-health">
           <span class="action-icon">&#9881;</span>
           <span class="action-label">Page Health</span>
-          <span class="action-desc">Coming in Phase 2</span>
+          <span class="action-desc">Audit current page</span>
+        </button>
+        <button class="action-btn" onclick="onNamingReport()" id="btn-naming">
+          <span class="action-icon">&#9998;</span>
+          <span class="action-label">Naming Issues</span>
+          <span class="action-desc">Find auto-named layers</span>
+        </button>
+        <button class="action-btn" onclick="onStyleAudit()" id="btn-styles">
+          <span class="action-icon">&#127912;</span>
+          <span class="action-label">Style Audit</span>
+          <span class="action-desc">Hardcoded colors &amp; fonts</span>
+        </button>
+        <button class="action-btn" onclick="onSpatialReport()" id="btn-spatial">
+          <span class="action-icon">&#9645;</span>
+          <span class="action-label">Spatial Check</span>
+          <span class="action-desc">Overlaps &amp; spacing</span>
         </button>
       </div>
+    </div>
+
+    <!-- Audit Results Panel -->
+    <div id="audit-panel" class="section" style="display:none;">
+      <div class="section-title" id="audit-panel-title">Audit Results</div>
+      <div id="audit-panel-content" style="font-size:11px; line-height:1.6;"></div>
+      <button class="secondary" onclick="hideAuditPanel()" style="margin-top:8px;">Dismiss</button>
     </div>
 
     <div class="section">
@@ -735,6 +757,19 @@
     }
 
     function handleOrganizeResponse(action, response) {
+      // Check for audit callback first
+      var auditCb = response.requestId && pendingAuditCallbacks[response.requestId];
+      if (auditCb) {
+        delete pendingAuditCallbacks[response.requestId];
+        if (response.type === 'error') {
+          showAuditPanel(action, '<strong>Error:</strong> ' + (response.data && response.data.message || 'Unknown error'));
+        } else {
+          auditCb(response.data || {});
+        }
+        log(action + ' completed', 'success');
+        return;
+      }
+
       if (response.type === 'error') {
         showOrganizeResult('<strong>' + action + ' failed:</strong> ' + (response.data && response.data.message || 'Unknown error'), 'error');
         log(action + ' failed: ' + (response.data && response.data.message || 'Unknown error'), 'error');
@@ -789,6 +824,118 @@
 
     function onCreateSection() {
       sendOrganizeAction('create-section-from-selection', {}, 'Create Section');
+    }
+
+    // ── Phase 2: Audit Actions ────────────────────────────────────────────
+
+    function onPageHealth() {
+      sendAuditAction('get-page-summary', {}, 'Page Health', function(data) {
+        var lines = [
+          '<strong>Page Health: ' + data.page.name + '</strong>',
+          'Total nodes: ' + data.totalNodes,
+          'Frames/Components: ' + data.frameCount,
+          'Sections: ' + data.sectionCount,
+          'Instances: ' + data.instanceCount,
+          'Detached instances: ' + (data.detachedCount > 0 ? '<span style="color:#f24822">' + data.detachedCount + '</span>' : '0'),
+          'Auto-named layers: ' + (data.autoNamedCount > 0 ? '<span style="color:#f2a822">' + data.autoNamedCount + '</span>' : '0'),
+          'Deepest nesting: ' + data.deepestNesting + ' levels',
+        ];
+        showAuditPanel('Page Health', lines.join('<br>'));
+      });
+    }
+
+    function onNamingReport() {
+      sendAuditAction('get-naming-report', {}, 'Naming Report', function(data) {
+        if (data.totalIssues === 0) {
+          showAuditPanel('Naming Report', '<strong>No auto-named layers found.</strong> All layers have custom names.');
+          return;
+        }
+        var lines = ['<strong>' + data.totalIssues + ' auto-named layers</strong>' + (data.truncated ? ' (showing first 100)' : '')];
+        lines.push('');
+        for (var i = 0; i < Math.min(data.byParent.length, 10); i++) {
+          var g = data.byParent[i];
+          lines.push(g.parentName + ': <strong>' + g.count + '</strong> issues');
+        }
+        if (data.byParent.length > 10) lines.push('...and ' + (data.byParent.length - 10) + ' more parents');
+        showAuditPanel('Naming Report', lines.join('<br>'));
+      });
+    }
+
+    function onStyleAudit() {
+      sendAuditAction('get-style-audit', {}, 'Style Audit', function(data) {
+        var lines = ['<strong>Style Audit: ' + data.page.name + '</strong>'];
+        lines.push('');
+        lines.push('Hardcoded colors: ' + (data.hardcodedColors.count > 0 ? '<span style="color:#f2a822">' + data.hardcodedColors.count + '</span>' : '0'));
+        lines.push('Hardcoded fonts: ' + (data.hardcodedFonts.count > 0 ? '<span style="color:#f2a822">' + data.hardcodedFonts.count + '</span>' : '0'));
+
+        if (data.hardcodedColors.count > 0) {
+          // Show unique colors
+          var colorSet = {};
+          for (var i = 0; i < data.hardcodedColors.items.length; i++) {
+            var item = data.hardcodedColors.items[i];
+            for (var j = 0; j < item.fills.length; j++) {
+              colorSet[item.fills[j]] = (colorSet[item.fills[j]] || 0) + 1;
+            }
+          }
+          var colorEntries = Object.entries(colorSet).sort(function(a, b) { return b[1] - a[1]; });
+          lines.push('');
+          lines.push('Top colors:');
+          for (var i = 0; i < Math.min(colorEntries.length, 8); i++) {
+            lines.push('<span style="display:inline-block;width:10px;height:10px;background:' + colorEntries[i][0] + ';border:1px solid #ccc;vertical-align:middle;margin-right:4px;"></span>' + colorEntries[i][0] + ' (' + colorEntries[i][1] + 'x)');
+          }
+        }
+        showAuditPanel('Style Audit', lines.join('<br>'));
+      });
+    }
+
+    function onSpatialReport() {
+      sendAuditAction('get-spatial-report', {}, 'Spatial Report', function(data) {
+        var lines = ['<strong>Spatial Report: ' + data.page.name + '</strong>'];
+        lines.push('Top-level frames: ' + data.topLevelFrames);
+        lines.push('');
+        lines.push('Overlaps: ' + (data.overlaps.count > 0 ? '<span style="color:#f24822">' + data.overlaps.count + '</span>' : '0'));
+        if (data.overlaps.count > 0) {
+          for (var i = 0; i < Math.min(data.overlaps.items.length, 5); i++) {
+            var o = data.overlaps.items[i];
+            lines.push('  ' + o.a.name + ' ↔ ' + o.b.name + ' (' + o.overlapArea + 'px²)');
+          }
+        }
+        lines.push('');
+        lines.push('Spacing: ' + data.spacing.consistency);
+        if (data.spacing.gaps.length > 0) {
+          for (var i = 0; i < Math.min(data.spacing.gaps.length, 5); i++) {
+            var g = data.spacing.gaps[i];
+            lines.push('  ' + g.from + ' → ' + g.to + ': ' + g.gap + 'px');
+          }
+        }
+        showAuditPanel('Spatial Report', lines.join('<br>'));
+      });
+    }
+
+    function sendAuditAction(type, data, actionName, callback) {
+      var requestId = 'audit_' + (++organizeRequestCounter);
+      pendingAuditCallbacks[requestId] = callback;
+      pendingOrganizeActions[requestId] = actionName;
+      parent.postMessage({ pluginMessage: { requestId: requestId, type: type, data: data || {} } }, '*');
+      log('Running: ' + actionName + '...', 'info');
+    }
+
+    var pendingAuditCallbacks = {};
+
+    function showAuditPanel(title, html) {
+      var panel = document.getElementById('audit-panel');
+      var titleEl = document.getElementById('audit-panel-title');
+      var contentEl = document.getElementById('audit-panel-content');
+      if (panel && titleEl && contentEl) {
+        titleEl.textContent = title;
+        contentEl.innerHTML = html;
+        panel.style.display = 'block';
+      }
+    }
+
+    function hideAuditPanel() {
+      var panel = document.getElementById('audit-panel');
+      if (panel) panel.style.display = 'none';
     }
 
     // ── Quick Actions ─────────────────────────────────────────────────────

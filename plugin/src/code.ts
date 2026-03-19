@@ -369,6 +369,27 @@ figma.ui.onmessage = async (msg) => {
         respond('section-from-selection-created', sectionResult);
         break;
 
+      // ── Phase 2: Auditing & Summary ─────────────────────────────────────
+      case 'get-page-summary':
+        const summaryResult = getPageSummary();
+        respond('page-summary', summaryResult);
+        break;
+
+      case 'get-naming-report':
+        const namingResult = getNamingReport();
+        respond('naming-report', namingResult);
+        break;
+
+      case 'get-style-audit':
+        const styleAuditResult = getStyleAudit();
+        respond('style-audit', styleAuditResult);
+        break;
+
+      case 'get-spatial-report':
+        const spatialResult = getSpatialReport();
+        respond('spatial-report', spatialResult);
+        break;
+
       default:
         console.warn('Unknown message type:', msg.type);
         respond('error', { message: 'Unknown command' });
@@ -1293,6 +1314,261 @@ function createSectionFromSelection() {
     y: section.y,
     width: section.width,
     height: section.height
+  };
+}
+
+// ===== PHASE 2: AUDITING & SUMMARY HANDLERS =====
+
+const AUTO_NAME_PATTERNS = /^(Frame|Rectangle|Ellipse|Group|Line|Vector|Text|Component|Instance|Section|Polygon|Star|Slice|Boolean)\s*\d*$/;
+
+function getPageSummary() {
+  const page = figma.currentPage;
+  let frameCount = 0;
+  let sectionCount = 0;
+  let autoNamedCount = 0;
+  let deepestNesting = 0;
+  let detachedCount = 0;
+  let instanceCount = 0;
+  let totalNodes = 0;
+
+  function walk(node: SceneNode, depth: number) {
+    totalNodes++;
+    if (depth > deepestNesting) deepestNesting = depth;
+
+    if (AUTO_NAME_PATTERNS.test(node.name)) autoNamedCount++;
+
+    switch (node.type) {
+      case 'FRAME':
+      case 'COMPONENT':
+      case 'COMPONENT_SET':
+        frameCount++;
+        break;
+      case 'SECTION':
+        sectionCount++;
+        break;
+      case 'INSTANCE':
+        instanceCount++;
+        // Check if detached (instance with no main component)
+        if (!(node as InstanceNode).mainComponent) detachedCount++;
+        break;
+    }
+
+    if ('children' in node) {
+      for (const child of (node as ChildrenMixin).children) {
+        walk(child as SceneNode, depth + 1);
+      }
+    }
+  }
+
+  for (const child of page.children) {
+    walk(child as SceneNode, 1);
+  }
+
+  return {
+    page: { id: page.id, name: page.name },
+    totalNodes,
+    frameCount,
+    sectionCount,
+    autoNamedCount,
+    deepestNesting,
+    instanceCount,
+    detachedCount,
+  };
+}
+
+function getNamingReport() {
+  const page = figma.currentPage;
+  const issues: { id: string; name: string; type: string; parentId: string; parentName: string }[] = [];
+  const byParent: Record<string, { parentName: string; count: number }> = {};
+
+  function walk(node: SceneNode, parentId: string, parentName: string) {
+    if (AUTO_NAME_PATTERNS.test(node.name)) {
+      issues.push({
+        id: node.id,
+        name: node.name,
+        type: node.type,
+        parentId,
+        parentName,
+      });
+      const key = parentId;
+      if (!byParent[key]) byParent[key] = { parentName, count: 0 };
+      byParent[key].count++;
+    }
+
+    if ('children' in node) {
+      for (const child of (node as ChildrenMixin).children) {
+        walk(child as SceneNode, node.id, node.name);
+      }
+    }
+  }
+
+  for (const child of page.children) {
+    walk(child as SceneNode, page.id, page.name);
+  }
+
+  // Sort by parent with most issues
+  const grouped = Object.entries(byParent)
+    .map(([parentId, { parentName, count }]) => ({ parentId, parentName, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    page: { id: page.id, name: page.name },
+    totalIssues: issues.length,
+    byParent: grouped,
+    // Only include first 100 individual issues to keep response size reasonable
+    issues: issues.slice(0, 100),
+    truncated: issues.length > 100,
+  };
+}
+
+function getStyleAudit() {
+  const page = figma.currentPage;
+
+  // Gather all local paint style and text style IDs for comparison
+  const localPaintStyleIds = new Set(figma.getLocalPaintStyles().map(s => s.id));
+  const localTextStyleIds = new Set(figma.getLocalTextStyles().map(s => s.id));
+
+  const hardcodedColors: { id: string; name: string; type: string; fills: string[] }[] = [];
+  const hardcodedFonts: { id: string; name: string; fontFamily: string; fontSize: number }[] = [];
+
+  function walk(node: SceneNode) {
+    // Check fills — nodes with solid fills not bound to a style or variable
+    if ('fills' in node && 'fillStyleId' in node) {
+      const fills = (node as GeometryMixin).fills;
+      const styleId = (node as any).fillStyleId;
+      const boundVars = (node as any).boundVariables;
+      const hasFillBinding = boundVars && boundVars.fills && boundVars.fills.length > 0;
+
+      if (Array.isArray(fills) && fills.length > 0 && !styleId && !hasFillBinding) {
+        const hexValues = fills
+          .filter((f: Paint) => f.type === 'SOLID' && f.visible !== false)
+          .map((f: SolidPaint) => {
+            const r = Math.round(f.color.r * 255).toString(16).padStart(2, '0');
+            const g = Math.round(f.color.g * 255).toString(16).padStart(2, '0');
+            const b = Math.round(f.color.b * 255).toString(16).padStart(2, '0');
+            return `#${r}${g}${b}`;
+          });
+
+        if (hexValues.length > 0) {
+          hardcodedColors.push({
+            id: node.id,
+            name: node.name,
+            type: node.type,
+            fills: hexValues,
+          });
+        }
+      }
+    }
+
+    // Check text nodes for hardcoded fonts (no text style applied)
+    if (node.type === 'TEXT') {
+      const textNode = node as TextNode;
+      const styleId = (textNode as any).textStyleId;
+      if (!styleId || styleId === '') {
+        const font = textNode.fontName;
+        if (font && typeof font !== 'symbol') {
+          hardcodedFonts.push({
+            id: node.id,
+            name: node.name,
+            fontFamily: (font as FontName).family,
+            fontSize: typeof textNode.fontSize === 'number' ? textNode.fontSize : 0,
+          });
+        }
+      }
+    }
+
+    if ('children' in node) {
+      for (const child of (node as ChildrenMixin).children) {
+        walk(child as SceneNode);
+      }
+    }
+  }
+
+  for (const child of page.children) {
+    walk(child as SceneNode);
+  }
+
+  return {
+    page: { id: page.id, name: page.name },
+    hardcodedColors: {
+      count: hardcodedColors.length,
+      items: hardcodedColors.slice(0, 100),
+      truncated: hardcodedColors.length > 100,
+    },
+    hardcodedFonts: {
+      count: hardcodedFonts.length,
+      items: hardcodedFonts.slice(0, 100),
+      truncated: hardcodedFonts.length > 100,
+    },
+  };
+}
+
+function getSpatialReport() {
+  const page = figma.currentPage;
+  const topFrames = page.children.filter(
+    (n) => n.type === 'FRAME' || n.type === 'COMPONENT' || n.type === 'COMPONENT_SET' || n.type === 'SECTION'
+  ) as SceneNode[];
+
+  // Detect overlapping frames
+  const overlaps: { a: { id: string; name: string }; b: { id: string; name: string }; overlapArea: number }[] = [];
+  for (let i = 0; i < topFrames.length; i++) {
+    for (let j = i + 1; j < topFrames.length; j++) {
+      const a = topFrames[i];
+      const b = topFrames[j];
+
+      const overlapX = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+      const overlapY = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+      const area = overlapX * overlapY;
+
+      if (area > 0) {
+        overlaps.push({
+          a: { id: a.id, name: a.name },
+          b: { id: b.id, name: b.name },
+          overlapArea: Math.round(area),
+        });
+      }
+    }
+  }
+
+  // Detect inconsistent spacing between adjacent frames
+  // Sort by position and check gaps between neighbors
+  const sorted = [...topFrames].sort((a, b) => a.x - b.x || a.y - b.y);
+  const gaps: number[] = [];
+  const gapDetails: { from: string; to: string; gap: number }[] = [];
+
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    // Horizontal gap (only for frames roughly on the same row)
+    if (Math.abs(a.y - b.y) < Math.max(a.height, b.height) * 0.5) {
+      const gap = b.x - (a.x + a.width);
+      if (gap > 0) {
+        gaps.push(gap);
+        gapDetails.push({ from: a.name, to: b.name, gap: Math.round(gap) });
+      }
+    }
+  }
+
+  // Calculate spacing consistency
+  let spacingConsistency = 'N/A';
+  if (gaps.length >= 2) {
+    const avg = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+    const variance = gaps.reduce((s, g) => s + Math.pow(g - avg, 2), 0) / gaps.length;
+    const stdDev = Math.sqrt(variance);
+    spacingConsistency = stdDev < 10 ? 'consistent' : stdDev < 50 ? 'somewhat inconsistent' : 'very inconsistent';
+  }
+
+  return {
+    page: { id: page.id, name: page.name },
+    topLevelFrames: topFrames.length,
+    overlaps: {
+      count: overlaps.length,
+      items: overlaps.slice(0, 50),
+    },
+    spacing: {
+      consistency: spacingConsistency,
+      gaps: gapDetails.slice(0, 50),
+    },
   };
 }
 
