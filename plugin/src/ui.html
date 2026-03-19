@@ -439,13 +439,13 @@
     </div>
 
     <div class="section">
-      <div class="section-title">Connections</div>
+      <div class="section-title">Connection</div>
 
       <div class="connection-row">
         <div class="conn-left">
           <div class="conn-dot" id="cc-dot"></div>
           <div class="conn-info">
-            <span class="conn-name">Claude Code</span>
+            <span class="conn-name">figma-bridge</span>
             <span class="conn-port">port 3055</span>
           </div>
         </div>
@@ -453,25 +453,6 @@
           <input type="checkbox" id="cc-toggle" onchange="onCCToggle()">
           <span class="toggle-slider"></span>
         </label>
-      </div>
-
-      <div class="connection-row">
-        <div class="conn-left">
-          <div class="conn-dot" id="cd-dot"></div>
-          <div class="conn-info">
-            <span class="conn-name">Claude Desktop</span>
-            <span class="conn-port">port 3056</span>
-          </div>
-        </div>
-        <label class="toggle-label">
-          <input type="checkbox" id="cd-toggle" onchange="onCDToggle()">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-
-      <div class="warning-banner" id="both-warning">
-        <strong>Both clients active</strong>
-        Claude Code and Claude Desktop can both send commands to this file at the same time. This is fine for independent tasks — just avoid having them edit the same elements simultaneously.
       </div>
     </div>
 
@@ -562,10 +543,7 @@
 
     // ── State ──────────────────────────────────────────────────────────────
     var wsCC = null;
-    var wsCD = null;
     var isCCConnected = false;
-    var isCDConnected = false;
-    var pendingSource = {};
     var currentTab = 'design';
 
     // Track pending organize actions so we can handle responses in the UI
@@ -643,23 +621,12 @@
       if (!indicator || !text) return;
 
       indicator.className = 'status-indicator';
-      if (isCCConnected && isCDConnected) {
+      if (isCCConnected) {
         indicator.classList.add('connected');
-        text.textContent = 'CC + CD connected';
-      } else if (isCCConnected) {
-        indicator.classList.add('connected');
-        text.textContent = 'Claude Code connected';
-      } else if (isCDConnected) {
-        indicator.classList.add('connected');
-        text.textContent = 'Claude Desktop connected';
+        text.textContent = 'Connected';
       } else {
         text.textContent = 'Not connected';
       }
-    }
-
-    function updateBothWarning() {
-      var el = document.getElementById('both-warning');
-      if (el) el.style.display = (isCCConnected && isCDConnected) ? 'block' : 'none';
     }
 
     // ── Dot helpers ───────────────────────────────────────────────────────
@@ -694,7 +661,6 @@
         isCCConnected = true;
         log('Connected to Claude Code', 'success');
         setDot('cc-dot', 'connected');
-        updateBothWarning();
         updateHeaderStatus();
       };
 
@@ -704,7 +670,6 @@
         wsCC = null;
         setDot('cc-dot', '');
         document.getElementById('cc-toggle').checked = false;
-        updateBothWarning();
         updateHeaderStatus();
       };
 
@@ -717,7 +682,6 @@
         try {
           var msg = JSON.parse(event.data);
           log('[CC] Received: ' + (msg.type || 'unknown'));
-          if (msg.requestId) pendingSource[msg.requestId] = 'cc';
           parent.postMessage({ pluginMessage: msg }, '*');
         } catch (e) {
           log('[CC] Parse error: ' + e.message, 'error');
@@ -730,79 +694,12 @@
       if (wsCC) { wsCC.close(); wsCC = null; }
       isCCConnected = false;
       setDot('cc-dot', '');
-      updateBothWarning();
-      updateHeaderStatus();
-    }
-
-    // ── Claude Desktop (3056) ─────────────────────────────────────────────
-
-    function onCDToggle() {
-      var checked = document.getElementById('cd-toggle').checked;
-      if (checked) connectCD(); else disconnectCD();
-    }
-
-    function connectCD() {
-      var url = 'ws://localhost:3056';
-      log('Connecting to Claude Desktop (' + url + ')...');
-      setDot('cd-dot', 'connecting');
-
-      try {
-        wsCD = new WebSocket(url);
-      } catch (e) {
-        showError('CD WebSocket failed: ' + e.message);
-        setDot('cd-dot', 'error');
-        document.getElementById('cd-toggle').checked = false;
-        return;
-      }
-
-      wsCD.onopen = function() {
-        isCDConnected = true;
-        log('Connected to Claude Desktop', 'success');
-        setDot('cd-dot', 'connected');
-        updateBothWarning();
-        updateHeaderStatus();
-      };
-
-      wsCD.onclose = function(event) {
-        log('Claude Desktop disconnected (code: ' + event.code + ')', 'warning');
-        isCDConnected = false;
-        wsCD = null;
-        setDot('cd-dot', '');
-        document.getElementById('cd-toggle').checked = false;
-        updateBothWarning();
-        updateHeaderStatus();
-      };
-
-      wsCD.onerror = function() {
-        log('Claude Desktop error — is the MCP server running on port 3056?', 'error');
-        setDot('cd-dot', 'error');
-      };
-
-      wsCD.onmessage = function(event) {
-        try {
-          var msg = JSON.parse(event.data);
-          log('[CD] Received: ' + (msg.type || 'unknown'));
-          if (msg.requestId) pendingSource[msg.requestId] = 'cd';
-          parent.postMessage({ pluginMessage: msg }, '*');
-        } catch (e) {
-          log('[CD] Parse error: ' + e.message, 'error');
-        }
-      };
-    }
-
-    function disconnectCD() {
-      log('Disconnecting from Claude Desktop...');
-      if (wsCD) { wsCD.close(); wsCD = null; }
-      isCDConnected = false;
-      setDot('cd-dot', '');
-      updateBothWarning();
       updateHeaderStatus();
     }
 
     // ── Response routing ──────────────────────────────────────────────────
-    // When code.ts sends a response, route it back to whichever server
-    // originated the request (tracked via requestId → source map).
-    // Also handle organize action responses locally.
+    // When code.ts sends a response, forward it back to the CLI server
+    // via WebSocket. Organize action responses are handled locally.
 
     window.addEventListener('message', function(event) {
       try {
@@ -814,38 +711,12 @@
           var action = pendingOrganizeActions[response.requestId];
           delete pendingOrganizeActions[response.requestId];
           handleOrganizeResponse(action, response);
-          return;  // Don't forward organize responses to WebSocket
+          return;
         }
 
-        var source = response.requestId ? pendingSource[response.requestId] : null;
-        if (response.requestId) delete pendingSource[response.requestId];
-
-        var sent = false;
-
-        if (source === 'cc' && wsCC && wsCC.readyState === WebSocket.OPEN) {
+        if (wsCC && wsCC.readyState === WebSocket.OPEN) {
           wsCC.send(JSON.stringify(response));
-          log('[CC] Sent: ' + (response.type || 'unknown'));
-          sent = true;
-        } else if (source === 'cd' && wsCD && wsCD.readyState === WebSocket.OPEN) {
-          wsCD.send(JSON.stringify(response));
-          log('[CD] Sent: ' + (response.type || 'unknown'));
-          sent = true;
-        } else {
-          // No known source (e.g. ping) — broadcast to all open connections
-          if (wsCC && wsCC.readyState === WebSocket.OPEN) {
-            wsCC.send(JSON.stringify(response));
-            log('[CC] Sent: ' + (response.type || 'unknown'));
-            sent = true;
-          }
-          if (wsCD && wsCD.readyState === WebSocket.OPEN) {
-            wsCD.send(JSON.stringify(response));
-            log('[CD] Sent: ' + (response.type || 'unknown'));
-            sent = true;
-          }
-        }
-
-        if (!sent && !response.requestId) {
-          // Only warn for non-organize, non-internal messages
+          log('Sent: ' + (response.type || 'response'));
         }
       } catch (e) {
         log('Error forwarding message: ' + e.message, 'error');
@@ -923,7 +794,7 @@
     // ── Quick Actions ─────────────────────────────────────────────────────
 
     function onTestClick() {
-      if (!isCCConnected && !isCDConnected) {
+      if (!isCCConnected) {
         log('Not connected — enable at least one connection first', 'warning');
         return;
       }
