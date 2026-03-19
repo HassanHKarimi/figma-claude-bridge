@@ -164,35 +164,51 @@ A tab/toggle in the plugin UI switches between Design and Organize modes. The mo
 
 ---
 
-## Future / Backlog
+## Architecture: CLI + Skill (replaces MCP)
 
-### CLI & MCP Migration
-After the organizer mode phases are complete, consider building a **standalone CLI** for the Figma bridge and potentially migrating away from MCP as the primary protocol.
+> **Decision (2026-03-19):** Replaced MCP server with a direct CLI (`figma-bridge`) + Claude Code skill. MCP code preserved on `archive/mcp-server` branch.
 
-**Motivation:**
-- MCP adds a layer of indirection — tools must be registered at session start, server must be running, new sessions needed for new tools
-- A CLI (`figma-bridge align-frames`, `figma-bridge audit --page "Screens"`) would be more composable — usable from scripts, CI, git hooks, other tools
-- CLI could still use the WebSocket connection to the Figma plugin, but skip the MCP server layer entirely
-- Claude Code can call CLIs natively via Bash — no MCP registration needed, tools are always "available"
+### Why
+- MCP required session restarts for new tools, server must be running, tool registration at session start
+- CLI is composable (scripts, CI, pipes), always available via Bash, no registration needed
+- Claude Code skill provides the same contextual guidance the MCP tool descriptions did
 
-**What this might look like:**
-- `figma-bridge` CLI that connects to the plugin WebSocket directly
-- Commands map 1:1 to plugin message types
-- MCP server becomes an optional wrapper for editors/tools that prefer MCP
-- Plugin stays the same — it doesn't care who's on the other end of the WebSocket
+### Architecture
+```
+┌──────────────┐  WebSocket :3055  ┌──────────────┐
+│ Figma Plugin │◄─────────────────►│ figma-bridge  │
+│  (code.ts)   │                   │   server      │
+└──────────────┘                   │               │
+                                   │  HTTP :3057   │
+                                   └───────┬───────┘
+                                           ▲
+                                           │ POST JSON
+                                   ┌───────┴───────┐
+                                   │ figma-bridge   │
+                                   │  CLI command   │
+                                   └───────────────┘
+                                     ▲
+                                     │ Bash tool call
+                                   ┌─┴─────────────┐
+                                   │  Claude Code   │
+                                   │  (via skill)   │
+                                   └────────────────┘
+```
 
-**Open questions:**
-- Keep MCP as an option alongside CLI, or fully replace?
-- How does the in-plugin chat (Phase 6) interact with a CLI-first architecture?
-- Package distribution — npm global install? Homebrew?
+### Components
+- **`cli/`** — CLI binary (`figma-bridge serve`, `figma-bridge <command> [json]`)
+- **`plugin/`** — Figma plugin (unchanged — doesn't care who's on the WebSocket)
+- **`skill/`** — Claude Code skill (replaces MCP tool descriptions)
+- **`archive/mcp-server`** branch — preserved MCP server code
 
 ---
 
 ## Versioning
 
 Following the project's capability-milestone versioning:
-- Phase 1-2 → **0.4.0** (Organizer Mode foundation)
-- Phase 3-4 → **0.5.0** (Componentizer)
-- Phase 5 → **0.5.x** (Compare, minor addition)
-- Phase 6 → **0.6.0** (In-plugin Chat)
-- CLI → **1.0.0** (standalone tool, major milestone)
+- Phase 1 → **0.4.0-alpha** (Organizer Mode UI + spatial actions)
+- CLI migration → **0.4.0** (CLI replaces MCP as primary transport)
+- Phase 2-3 → **0.5.0** (Auditing + cleanup)
+- Phase 4 → **0.6.0** (Componentizer)
+- Phase 5 → **0.6.x** (Compare)
+- Phase 6 → **0.7.0** (In-plugin Chat)
