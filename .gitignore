@@ -1,5 +1,6 @@
 # Personal/Local Configuration
 .claude/
+chronicle/
 *.local.json
 *.local.*
 scripts/
